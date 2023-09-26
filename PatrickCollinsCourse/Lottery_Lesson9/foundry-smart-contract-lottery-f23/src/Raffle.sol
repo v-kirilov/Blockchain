@@ -53,6 +53,9 @@ contract Raffle {
         emit EnteredRaffle(msg.sender);
     }
 
+    //1. Get a random number
+    //2. Use the random number to pick a player
+    //3. Be automatically called
     function pickWinner() public {}
 
     /**Getter function */
