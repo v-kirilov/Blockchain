@@ -1,0 +1,3 @@
+[submodule "PatrickCollinsCourse/Lottery_Lesson9/foundry-smart-contract-lottery-f23/lib/solmate"]
+	path = PatrickCollinsCourse/Lottery_Lesson9/foundry-smart-contract-lottery-f23/lib/solmate
+	url = https://github.com/transmissions11/solmate
