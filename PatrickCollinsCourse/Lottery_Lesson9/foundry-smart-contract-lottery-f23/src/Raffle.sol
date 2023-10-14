@@ -174,7 +174,6 @@ contract Raffle is VRFConsumerBaseV2 {
     }
 
     /**Getter function */
-
     function getEntranceFee() external view returns (uint256) {
         return i_entranceFee;
     }
@@ -185,5 +184,17 @@ contract Raffle is VRFConsumerBaseV2 {
 
     function getPlayer(uint256 indexOfPlayer) external view returns (address) {
         return s_players[indexOfPlayer];
+    }
+
+    function getRecentWinner() external view returns (address) {
+        return s_recentWinner;
+    }
+
+    function getLengthOfPlayers() external view returns (uint256) {
+        return s_players.length;
+    }
+
+    function getLastTimeStamp() external view returns (uint256) {
+        return s_lastTimeStamp;
     }
 }
