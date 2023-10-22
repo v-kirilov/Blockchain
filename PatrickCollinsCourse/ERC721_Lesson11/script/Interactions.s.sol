@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.18;
 
-import {Script} from "forge-std/Script.sol";
+import {Script,console} from "forge-std/Script.sol";
 import {BasicNft} from "../src/BasicNft.sol";
 import {DevOpsTools} from "../lib/foundry-devops/src/DevOpsTools.sol";
 
-contract MinBasiNft is Script {
+contract MintBasicNFT is Script {
     string constant SHIBA =
         "https://ipfs.io/ipfs/QmYx6GsYAKnNzZ9A6NvEKV9nf1VaDzJrqDR23Y8YSkebLU?filename=shiba-inu.png";
 
@@ -15,8 +15,8 @@ contract MinBasiNft is Script {
             "BasicNft",
             block.chainid
         );
-
         mintNftOnContract(mostRecentlyDeployed);
+        //mintNftOnContract(0x9eaDd843DB422f2D55c6076646e0a92c81DaC7ba);
     }
 
     function mintNftOnContract(address contractAddress) public {

@@ -13,6 +13,10 @@ contract BasifNftTest is Test {
     string constant SHIBA =
         "https://ipfs.io/ipfs/QmYx6GsYAKnNzZ9A6NvEKV9nf1VaDzJrqDR23Y8YSkebLU?filename=shiba-inu.png";
 
+        //Contract Address: 0x9eaDd843DB422f2D55c6076646e0a92c81DaC7ba
+        //make deploy ARGS="--network sepolia"
+        //forge verify-contract --chain 11155111 0x9eaDd843DB422f2D55c6076646e0a92c81DaC7ba BasicNft
+
     constructor() {
         deployer = new DeployBasicNft();
         basicNft = deployer.run();
