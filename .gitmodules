@@ -7,3 +7,9 @@
 [submodule "PatrickCollinsCourse/ERC20_Lesson10/lib/openzeppelin-contracts"]
 	path = PatrickCollinsCourse/ERC20_Lesson10/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "PatrickCollinsCourse/ERC721_Lesson11/lib/forge-std"]
+	path = PatrickCollinsCourse/ERC721_Lesson11/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "PatrickCollinsCourse/ERC721_Lesson11/lib/openzeppelin-contracts"]
+	path = PatrickCollinsCourse/ERC721_Lesson11/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
