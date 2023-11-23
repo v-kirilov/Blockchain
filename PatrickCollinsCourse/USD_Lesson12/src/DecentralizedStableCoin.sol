@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.18;
+
+import {ERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {ERC20Burnable} from "../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+
+/*
+ * @title DecentralizedStableCoin
+ * @author Viktor Kirilov
+ * Collateral: Exogenous (ETH & BTC)
+ * Minting (Stability Mechanism): Decentralized (Algorithmic)
+ * Value (Relative Stability): Anchored (Pegged to USD)
+ * Collateral Type: Crypto
+ *
+ * This is the contract meant to be owned by DSCEngine. It is a ERC20 token that can be minted and burned by the DSCEngine smart contract.
+ */
+contract DecentralizedStableCoin is ERC20Burnable, Ownable {
+    error DecentralizedStableCoin__MustBeMoreThanZero();
+    error DecentralizedStableCoin__BurnAmountExceedsBalance();
+
+    constructor() ERC20("DesentraliedStalkeCoin", "DSC") Ownable(msg.sender) {}
+
+    function burn(uint256 _amount) public override onlyOwner {
+        uint256 balance = balanceOf(msg.sender);
+        if (_amount <= 0) {
+            revert DecentralizedStableCoin__MustBeMoreThanZero();
+        }
+
+        if (balance < _amount) {
+            revert DecentralizedStableCoin__BurnAmountExceedsBalance();
+        }
+        super.burn(_amount);
+    }
+}
