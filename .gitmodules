@@ -19,3 +19,6 @@
 [submodule "PatrickCollinsCourse/USD_Lesson12/lib/openzeppelin-contracts"]
 	path = PatrickCollinsCourse/USD_Lesson12/lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "PatrickCollinsCourse/USD_Lesson12/lib/chainlink-brownie-contracts"]
+	path = PatrickCollinsCourse/USD_Lesson12/lib/chainlink-brownie-contracts
+	url = https://github.com/smartcontractkit/chainlink-brownie-contracts

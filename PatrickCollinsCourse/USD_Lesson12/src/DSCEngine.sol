@@ -5,6 +5,8 @@ pragma solidity ^0.8.18;
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 import {ReentrancyGuard} from "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+// forge install smartcontractkit/chainlink-brownie-contracts --no-commit
+import {AggregatorV3Interface} from "../lib/chainlink-brownie-contracts/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /*
  * @title DSCEngine
@@ -37,13 +39,15 @@ contract DSCEngine is ReentrancyGuard {
 
     mapping(address token => address priceFeed) private s_priceFeeds; //tokenToPriceFeed
     mapping(address user => mapping(address token => uint256 amount)) private s_collaterlDeposited; //tokenToPriceFeed
+    mapping(address user => uint256 amount) private s_DSCMinted; //tokenToPriceFeed
+    address[] private s_collaterlTokens;
 
     DecentralizedStableCoin private immutable i_dsc;
 
     /////////////
     ///Events///
     ////////////
-    event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount); 
+    event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
 
     ///////////////
     ///Modifiers///
@@ -74,6 +78,7 @@ contract DSCEngine is ReentrancyGuard {
         }
         for (uint256 i = 0; i < tokenAddresses.length; i++) {
             s_priceFeeds[tokenAddresses[i]] = priceFeedsAddresses[i];
+            s_collaterlTokens.push(tokenAddresses[i]);
         }
         i_dsc = DecentralizedStableCoin(dscAddress);
     }
@@ -97,7 +102,7 @@ contract DSCEngine is ReentrancyGuard {
         s_collaterlDeposited[msg.sender][tokenCollateralAddress] += amountCollateral;
         emit CollateralDeposited(msg.sender, tokenCollateralAddress, amountCollateral);
 
-        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender,address(this), amountCollateral);
+        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), amountCollateral);
         if (!success) {
             revert DSCEngine__TransferFailes();
         }
@@ -113,11 +118,62 @@ contract DSCEngine is ReentrancyGuard {
 
     function redeemCollateral() external {}
 
-    function mintDsc() external {}
+    /*
+     * @param amountDscToMint AMount to mint , must have more collateral than minimum threshold
+     */
+    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) nonReentrant {
+        s_DSCMinted[msg.sender] += amountDscToMint;
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
 
     function burnDsc() external {}
 
     function liquidate() external {}
 
     function getHealthFactor() external {}
+
+    /////////////////////////////////////////
+    ///Private and Internal View Functions///
+    /////////////////////////////////////////
+
+    /*
+     * Returns how close to a liquidation a user is
+     * If a user goes below 1 then they can get liquidated
+     */
+    function _getAccountInformation(address user)
+        private
+        view
+        returns (uint256 totalDscMinted, uint256 collateralValueInUsd)
+    {
+        totalDscMinted = s_DSCMinted[user];
+        collateralValueInUsd = getAccountCollateralValue(user);
+    }
+
+    function _healthFactor(address user) private view returns (uint256) {
+        // total DSC minted
+        // total collateral Value
+        (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+    }
+
+    function _revertIfHealthFactorIsBroken(address user) internal view {
+        //1. Check health factor
+        //2. Revert if not healthy
+    }
+
+    /////////////////////////////////////////
+    ///Public and External View Functions///
+    /////////////////////////////////////////
+
+    function getAccountCollateralValue(address user) public view returns (uint256) {
+        // loop through each collateral token , get the amount they have deposited and map it to
+        // the price, to get the USD value
+        for (uint i = 0; i < s_collaterlTokens.length; i++) {
+            address token = s_collaterlTokens[i];
+            uint256 amount = s_collaterlDeposited[user][token];
+        }
+    }
+
+    function getUsdValue(address token, uint256 amount) public view returns (uint256) {
+        
+    }
 }
