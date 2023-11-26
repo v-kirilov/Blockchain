@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.18;
 
+import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
+
 /*
  * @title DSCEngine
  * @author Viktor Kirilov
@@ -18,9 +20,72 @@ pragma solidity ^0.8.18;
  * @notice This contract is based on the MakerDAO DSS system
  */
 contract DSCEngine {
+    ///////////////
+    ///Errors///
+    ///////////////
+
+    error DSCEngine__NeedsMoreThanZero();
+    error DSCEngine__NotAllowedToken();
+    error DSCEngine__TokenAddressAndPriceFeedAddressesMustBeSameLength();
+
+    /////////////////////
+    ///State variables///
+    /////////////////////
+
+    mapping(address token => address priceFeed) private s_priceFeeds; //tokenToPriceFeed
+
+    DecentralizedStableCoin private immutable i_dsc;
+
+    ///////////////
+    ///Modifiers///
+    ///////////////
+
+    modifier moreThanZero(uint256 amount) {
+        if (amount == 0) {
+            revert DSCEngine__NeedsMoreThanZero();
+        }
+        _;
+    }
+
+    modifier isAllowedToken(address tokenAddress) {
+        if (s_priceFeeds[tokenAddress] == address(0)) {
+            revert DSCEngine__NotAllowedToken();
+        }
+        _;
+    }
+
+    ///////////////
+    ///Functions///
+    ///////////////
+    constructor(
+        address[] memory tokenAddresses,
+        address[] memory priceFeedsAddresses,
+        address dscAddress
+    ) {
+        //USD price feeds
+        if (tokenAddresses.length != priceFeedsAddresses.length) {
+            revert DSCEngine__TokenAddressAndPriceFeedAddressesMustBeSameLength();
+        }
+        for (uint i = 0; i < tokenAddresses.length; i++) {
+            s_priceFeeds[tokenAddresses[i]] = priceFeedsAddresses[i];
+        }
+        i_dsc = DecentralizedStableCoin(dscAddress);
+    }
+
+    ////////////////////////
+    ///External Functions///
+    ////////////////////////
+
     function depositCollateralAndMintDsc() external {}
 
-    function depositCollateral() external {}
+    /*
+     * @param tokenCollateralAddress The address of the token to deposit as collaterall
+     * @param amountCollateral The amount of the token to deposit as collaterall
+     */
+    function depositCollateral(
+        address tokenCollateralAddress,
+        uint256 amountCollateral
+    ) external moreThanZero(amountCollateral) {}
 
     function redeemCollateralForDsc() external {}
 
