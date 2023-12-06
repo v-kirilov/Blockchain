@@ -22,3 +22,9 @@
 [submodule "PatrickCollinsCourse/USD_Lesson12/lib/chainlink-brownie-contracts"]
 	path = PatrickCollinsCourse/USD_Lesson12/lib/chainlink-brownie-contracts
 	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
+[submodule "PatrickCollinsCourse/Dao_Lesson14/lib/forge-std"]
+	path = PatrickCollinsCourse/Dao_Lesson14/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "PatrickCollinsCourse/Dao_Lesson14/lib/openzeppelin-contracts"]
+	path = PatrickCollinsCourse/Dao_Lesson14/lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
