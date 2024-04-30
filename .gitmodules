@@ -28,3 +28,12 @@
 [submodule "PatrickCollinsCourse/Dao_Lesson14/lib/openzeppelin-contracts"]
 	path = PatrickCollinsCourse/Dao_Lesson14/lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "BlackJack/lib/forge-std"]
+	path = BlackJack/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "BlackJack/lib/openzeppelin-contracts"]
+	path = BlackJack/lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "BlackJack/lib/foundry-chainlink-toolkit"]
+	path = BlackJack/lib/foundry-chainlink-toolkit
+	url = https://github.com/smartcontractkit/foundry-chainlink-toolkit
