@@ -14,12 +14,6 @@ contract BlackJack is Ownable, Test {
     error NotEnoughFunds();
     error SameHand();
 
-    struct Dealer {
-        uint256 funds;
-        uint256 hand;
-        uint256 currentHandId;
-    }
-
     struct Player {
         address wallet;
         uint256 funds;
@@ -28,16 +22,24 @@ contract BlackJack is Ownable, Test {
         bool isPlayingHand;
     }
 
+    struct Hand{
+        address player;
+        uint id;
+        uint256 dealerHand;
+        bool isDealerHandSoft;
+        uint256 playerHand;
+        bool isPlayerHandSoft;
+        bool isHandPlayedOut;
+        bool isHandDealt;
+        uint256 timeHandIsDealt;
+    }
+
     BUSDC private Btoken;
     BlackJackDataFeed private BjDataFeed;
     BlackJackVRF private BjVRF;
 
-    //mapping (address player => bool hasPlayed) hasPlayed;
-    mapping(address => Player) public playerToInfo; //Here we store currentHandId
-    //mapping(address => uint256) public dealerToPlayerHandId; //here we store on the side of the dealer the HandId
-    mapping(uint256 handId => uint256 dealerHand) public dealerHands; //Here we store the hand of the dealer for the handId
-    mapping(uint256 handId => bool isPlayed) isHandPlayed; //Here we store if the hand is played or not
-    Dealer private dealer = Dealer(0, 0, 0);
+    mapping(address => Player) public playerToInfo; //Here we store player info
+    mapping(uint256 handId => Hand hands) hands; //Store information about hands
 
     //address constant USDCAddress = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
 
@@ -47,7 +49,6 @@ contract BlackJack is Ownable, Test {
     }
 
     constructor(address _busdcAddress, address _bjDataFeed, address _bjVRF) Ownable(msg.sender) {
-        dealer.funds = ERC20(_busdcAddress).balanceOf(address(this));
         Btoken = BUSDC(_busdcAddress); //0x04965701C86F76a493069bdDB1683C393975C611
         BjDataFeed = BlackJackDataFeed(_bjDataFeed); //0x0654e483Ff874eC41CbB81B775bd72FaA79dcf6e
         BjVRF = BlackJackVRF(_bjVRF);
@@ -77,6 +78,10 @@ contract BlackJack is Ownable, Test {
         return BjDataFeed.getChainlinkDataFeedLatestAnswer();
     }
 
+    /// @notice You call this function to enter a bet as a player.
+    /// @dev Player enters bet, funds are being transfered to the contract from the player.
+    /// @dev Requires for the player to not be playing a hand.
+
     function enterBet(uint256 bet) external returns (uint256) {
         //Gotta make sure we are not playing the same hand over and over again.
         Player storage player = playerToInfo[msg.sender];
@@ -86,7 +91,6 @@ contract BlackJack is Ownable, Test {
         require(bet <= BUSDC(Btoken).balanceOf(address(this)), "Insufficient dealer funds");
         uint32 numWords = 2;
         player.funds -= bet;
-        dealer.funds += bet;
         Btoken.transferFrom(msg.sender, address(this), bet);
         uint256 newrequestId = BjVRF.requestRandomWords(numWords); //Need 2 to get cards for the player and for the dealer
 
@@ -101,35 +105,32 @@ contract BlackJack is Ownable, Test {
     /// @param requestId The requestId from the VRF
 
     function getHand(uint256 requestId) public returns (int256, int256) {
-        require(!isHandPlayed[requestId], "Hand played already");
+        //require(!isHandPlayed[requestId], "Hand played already");
+        Hand memory hand = hands[requestId];
+        require(hand.isHandPlayedOut, "Hand played already");
+        require(hand.isHandDealt, "Hand played already");
         (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(requestId);
-        console.log("Random num arr:", randomNumbers.length);
-
-        for (uint i = 0; i < randomNumbers.length; i++) {
-            console.log(randomNumbers[i]);
-        }
 
         require(isFulfilled, "Request not fulfilled");
-        console.log(randomNumbers.length);
         uint256[] memory playerPoints = getHandFromOneVRF(randomNumbers[0]);
-        console.log("Player arr:", playerPoints.length);
-
-        for (uint256 i = 0; i < playerPoints.length; i++) {
-            console.log(playerPoints[i]);
-        }
+   
         uint256[] memory dealerPoints = getHandFromOneVRF(randomNumbers[1]);
-        console.log("Dealer arr:", dealerPoints.length);
-        for (uint256 i = 0; i < dealerPoints.length; i++) {
-            console.log(dealerPoints[i]);
-        }
 
         (int256 playerHand, bool isPlayerHandSoft) = calculateHand(playerPoints);
         (int256 dealerHand, bool isDealerHandSoft) = calculateHand(dealerPoints);
-        // Record the hands;
 
-        dealerHands[requestId] = uint256(dealerHand);
+        // Record the hands;
+        hand.id = requestId;
+        hand.playerHand =uint256(playerHand);
+        hand.dealerHand =uint256(dealerHand);
+        hand.isHandDealt = true;
+        hand.timeHandIsDealt = block.timestamp;
+        hand.isDealerHandSoft = isDealerHandSoft;
+        hand.isPlayerHandSoft = isPlayerHandSoft;
+        hands[requestId] = hand;
+        //! How to handle 'HIT' and 'DOUBLE' logic?
+
         playerToInfo[msg.sender].hand = uint256(playerHand);
-        isHandPlayed[requestId] = true;
 
         return (playerHand, dealerHand);
     }
