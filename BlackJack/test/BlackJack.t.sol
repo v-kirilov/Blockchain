@@ -50,7 +50,7 @@ contract BlackJackTest is Test {
         console.log("Player ETH balance before withdraw: ", player.balance);
 
         registerPlayer();
-        (, uint256 funds,,,) = blackJack.getPlayerStats(player);
+        (, uint256 funds,) = blackJack.getPlayerStats(player);
         console.log("Player BUSDC funds: ", funds / 1e18);
 
         vm.prank(player);
