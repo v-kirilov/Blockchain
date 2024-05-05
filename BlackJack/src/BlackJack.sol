@@ -17,14 +17,12 @@ contract BlackJack is Ownable, Test {
     struct Player {
         address wallet;
         uint256 funds;
-        uint256 hand;
-        uint256 currentHandId;
         bool isPlayingHand;
     }
 
-    struct Hand{
+    struct Hand {
         address player;
-        uint id;
+        uint256 id;
         uint256 dealerHand;
         bool isDealerHandSoft;
         uint256 playerHand;
@@ -37,6 +35,7 @@ contract BlackJack is Ownable, Test {
     BUSDC private Btoken;
     BlackJackDataFeed private BjDataFeed;
     BlackJackVRF private BjVRF;
+    uint256 constant DURATION_OF_HAND = 10 * 20; //Max of 10 blocks
 
     mapping(address => Player) public playerToInfo; //Here we store player info
     mapping(uint256 handId => Hand hands) hands; //Store information about hands
@@ -64,7 +63,7 @@ contract BlackJack is Ownable, Test {
         //Calculate funds
         int256 ethPrice = getETHprice();
         uint256 amountToMint = (uint256(ethPrice) * 10 ** 18) / 10 ** 8;
-        Player memory newPlayer = Player(msg.sender, amountToMint, 0, 0, false);
+        Player memory newPlayer = Player(msg.sender, amountToMint, false);
         playerToInfo[msg.sender] = newPlayer;
 
         Btoken.mint(msg.sender, amountToMint);
@@ -84,17 +83,20 @@ contract BlackJack is Ownable, Test {
 
     function enterBet(uint256 bet) external returns (uint256) {
         //Gotta make sure we are not playing the same hand over and over again.
+        require(bet <= BUSDC(Btoken).balanceOf(msg.sender), "Insufficient player funds");
+        require(bet <= BUSDC(Btoken).balanceOf(address(this)), "Insufficient dealer funds");
+
         Player storage player = playerToInfo[msg.sender];
         require(!player.isPlayingHand, "Not allowed");
         require(player.wallet != address(0), "Not registered");
-        require(bet <= BUSDC(Btoken).balanceOf(msg.sender), "Insufficient player funds");
-        require(bet <= BUSDC(Btoken).balanceOf(address(this)), "Insufficient dealer funds");
         uint32 numWords = 2;
         player.funds -= bet;
         Btoken.transferFrom(msg.sender, address(this), bet);
         uint256 newrequestId = BjVRF.requestRandomWords(numWords); //Need 2 to get cards for the player and for the dealer
 
-        player.currentHandId = newrequestId;
+        Hand memory hand = Hand(msg.sender, newrequestId, 0, false, 0, false, false, false, block.timestamp);
+        hands[newrequestId] = hand;
+
         player.isPlayingHand = true;
 
         return newrequestId;
@@ -106,34 +108,47 @@ contract BlackJack is Ownable, Test {
 
     function getHand(uint256 requestId) public returns (int256, int256) {
         //require(!isHandPlayed[requestId], "Hand played already");
-        Hand memory hand = hands[requestId];
-        require(hand.isHandPlayedOut, "Hand played already");
-        require(hand.isHandDealt, "Hand played already");
+        Hand storage hand = hands[requestId];
+        require(!hand.isHandPlayedOut, "Hand played already");
+        require(!hand.isHandDealt, "Hand dealt already");
         (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(requestId);
 
         require(isFulfilled, "Request not fulfilled");
         uint256[] memory playerPoints = getHandFromOneVRF(randomNumbers[0]);
-   
+
         uint256[] memory dealerPoints = getHandFromOneVRF(randomNumbers[1]);
 
         (int256 playerHand, bool isPlayerHandSoft) = calculateHand(playerPoints);
         (int256 dealerHand, bool isDealerHandSoft) = calculateHand(dealerPoints);
 
         // Record the hands;
-        hand.id = requestId;
-        hand.playerHand =uint256(playerHand);
-        hand.dealerHand =uint256(dealerHand);
+        hand.playerHand = uint256(playerHand);
+        hand.dealerHand = uint256(dealerHand);
         hand.isHandDealt = true;
         hand.timeHandIsDealt = block.timestamp;
         hand.isDealerHandSoft = isDealerHandSoft;
         hand.isPlayerHandSoft = isPlayerHandSoft;
-        hands[requestId] = hand;
         //! How to handle 'HIT' and 'DOUBLE' logic?
-
-        playerToInfo[msg.sender].hand = uint256(playerHand);
 
         return (playerHand, dealerHand);
     }
+
+    /// @notice You call this function when you want to get another card for your hand.
+    /// @dev This will return the players hand and the dealers hand.
+    /// @param requestId The requestId from the VRF
+    function hit(uint256 requestId) external returns (int256, int256) {
+        Hand storage hand = hands[requestId];
+        require(hand.isHandDealt, "Hand not dealt yet!");
+        require(!hand.isHandPlayedOut, "Hand is played out!");
+        if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
+            hand.isHandPlayedOut = true;
+            //Finish Hand
+        }
+        //Check for the dealer hand , and also for the player hand.
+
+    }
+
+    function finishBet() public {}
 
     fallback() external {
         registerPlayer();
@@ -234,9 +249,9 @@ contract BlackJack is Ownable, Test {
         return sum;
     }
 
-    function getPlayerStats(address playerAddress) public view returns (address, uint256, uint256, uint256, bool) {
+    function getPlayerStats(address playerAddress) public view returns (address, uint256, bool) {
         Player memory player = playerToInfo[playerAddress];
-        return (player.wallet, player.funds, player.hand, player.currentHandId, player.isPlayingHand);
+        return (player.wallet, player.funds, player.isPlayingHand);
     }
 
     function renounceOwnership() public view override onlyOwner {
