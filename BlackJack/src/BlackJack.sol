@@ -16,7 +16,6 @@ contract BlackJack is Ownable, Test {
 
     struct Player {
         address wallet;
-        uint256 funds;
         bool isPlayingHand;
     }
 
@@ -30,6 +29,7 @@ contract BlackJack is Ownable, Test {
         bool isHandPlayedOut;
         bool isHandDealt;
         uint256 timeHandIsDealt;
+        uint256 playerBet;
     }
 
     BUSDC private Btoken;
@@ -63,7 +63,7 @@ contract BlackJack is Ownable, Test {
         //Calculate funds
         int256 ethPrice = getETHprice();
         uint256 amountToMint = (uint256(ethPrice) * 10 ** 18) / 10 ** 8;
-        Player memory newPlayer = Player(msg.sender, amountToMint, false);
+        Player memory newPlayer = Player(msg.sender,  false);
         playerToInfo[msg.sender] = newPlayer;
 
         Btoken.mint(msg.sender, amountToMint);
@@ -90,11 +90,10 @@ contract BlackJack is Ownable, Test {
         require(!player.isPlayingHand, "Not allowed");
         require(player.wallet != address(0), "Not registered");
         uint32 numWords = 2;
-        player.funds -= bet;
         Btoken.transferFrom(msg.sender, address(this), bet);
         uint256 newrequestId = BjVRF.requestRandomWords(numWords); //Need 2 to get cards for the player and for the dealer
 
-        Hand memory hand = Hand(msg.sender, newrequestId, 0, false, 0, false, false, false, block.timestamp);
+        Hand memory hand = Hand(msg.sender, newrequestId, 0, false, 0, false, false, false, block.timestamp, bet);
         hands[newrequestId] = hand;
 
         player.isPlayingHand = true;
@@ -141,14 +140,26 @@ contract BlackJack is Ownable, Test {
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
         if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
-            hand.isHandPlayedOut = true;
+            finishBet(requestId);
             //Finish Hand
         }
         //Check for the dealer hand , and also for the player hand.
-
     }
 
-    function finishBet() public {}
+    function finishBet(uint256 requestId) public {
+        Hand storage hand = hands[requestId];
+        require(hand.isHandDealt, "Hand not dealt yet!");
+        require(!hand.isHandPlayedOut, "Hand is played out!");
+        hand.isHandPlayedOut = true;
+        Player storage player = playerToInfo[hand.player];
+
+        if (hand.playerHand > hand.dealerHand) {
+            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
+        } else if (hand.playerHand == hand.dealerHand) {
+            Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
+        }
+        //Finish Hand
+    }
 
     fallback() external {
         registerPlayer();
@@ -156,14 +167,12 @@ contract BlackJack is Ownable, Test {
 
     function remainingPlayerFunds() external view returns (uint256) {
         Player memory player = playerToInfo[msg.sender];
-        return player.funds; // In BUSDC
+        return Btoken.balanceOf(msg.sender); // In BUSDC
     }
 
     function withdrawFunds(uint256 amount) external {
         Player storage player = playerToInfo[msg.sender];
-        require(player.funds > 0, "No funds left");
-        require(player.funds >= amount, "No enough funds");
-        player.funds -= amount;
+        require(Btoken.balanceOf(msg.sender) >= amount, "Not enough funds");
         int256 ethPrice = BjDataFeed.getChainlinkDataFeedLatestAnswer();
         uint256 amountToSendToPlayerBack = amount * 10 ** 8 / uint256(ethPrice);
         Btoken.burn(msg.sender, amount);
@@ -241,7 +250,7 @@ contract BlackJack is Ownable, Test {
         return y;
     }
 
-    function getCardFromOneVrf(uint256 x) public pure  returns (uint256 card, uint256 cardCheck) {
+    function getCardFromOneVrf(uint256 x) public pure returns (uint256 card, uint256 cardCheck) {
         card = (uint8(x % 10));
         cardCheck = (uint8((x / 10) % 10));
     }
@@ -256,7 +265,7 @@ contract BlackJack is Ownable, Test {
 
     function getPlayerStats(address playerAddress) public view returns (address, uint256, bool) {
         Player memory player = playerToInfo[playerAddress];
-        return (player.wallet, player.funds, player.isPlayingHand);
+        return (player.wallet, Btoken.balanceOf(playerAddress) ,player.isPlayingHand);
     }
 
     function renounceOwnership() public view override onlyOwner {
