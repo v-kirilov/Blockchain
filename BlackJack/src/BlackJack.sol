@@ -63,7 +63,7 @@ contract BlackJack is Ownable, Test {
         //Calculate funds
         int256 ethPrice = getETHprice();
         uint256 amountToMint = (uint256(ethPrice) * 10 ** 18) / 10 ** 8;
-        Player memory newPlayer = Player(msg.sender,  false);
+        Player memory newPlayer = Player(msg.sender, false);
         playerToInfo[msg.sender] = newPlayer;
 
         Btoken.mint(msg.sender, amountToMint);
@@ -141,9 +141,41 @@ contract BlackJack is Ownable, Test {
         require(!hand.isHandPlayedOut, "Hand is played out!");
         if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
             finishBet(requestId);
+            return requestId;
             //Finish Hand
         }
+        uint32 numWords = 1;
+        if (hand.dealerHand < 17) {
+            numWords = 2;
+        }
+
+        uint256 newrequestId = BjVRF.requestRandomWords(numWords); //Need 2 to get cards for the player and for the dealer
+        hand.isHandPlayedOut = true;
         //Check for the dealer hand , and also for the player hand.
+    }
+
+    function makeNewHand(
+        uint256 requestId,
+        uint256 newRequestId,
+        uint256 dealerPoints,
+        bool isDealerHandSoft,
+        uint256 playerPoints,
+        bool isPlayerHandSoft
+    ) private {
+        Hand memory oldHand = hands[requestId];
+        Hand memory newHand = Hand(
+            oldHand.player,
+            newRequestId,
+            dealerPoints,
+            isDealerHandSoft,
+            playerPoints,
+            isPlayerHandSoft,
+            oldHand.isHandPlayedOut,
+            oldHand.isHandDealt,
+            block.timestamp,
+            oldHand.playerBet
+        );
+        hands[newRequestId] = newHand;
     }
 
     function finishBet(uint256 requestId) public {
@@ -158,6 +190,8 @@ contract BlackJack is Ownable, Test {
         } else if (hand.playerHand == hand.dealerHand) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
         }
+        player.isPlayingHand = false;
+
         //Finish Hand
     }
 
@@ -265,7 +299,7 @@ contract BlackJack is Ownable, Test {
 
     function getPlayerStats(address playerAddress) public view returns (address, uint256, bool) {
         Player memory player = playerToInfo[playerAddress];
-        return (player.wallet, Btoken.balanceOf(playerAddress) ,player.isPlayingHand);
+        return (player.wallet, Btoken.balanceOf(playerAddress), player.isPlayingHand);
     }
 
     function renounceOwnership() public view override onlyOwner {
