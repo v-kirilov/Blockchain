@@ -136,7 +136,7 @@ contract BlackJack is Ownable, Test {
     /// @notice You call this function when you want to get another card for your hand.
     /// @dev This will return the players hand and the dealers hand.
     /// @param requestId The requestId from the VRF
-    function hit(uint256 requestId) external returns (int256, int256) {
+    function hit(uint256 requestId) external returns (uint256) {
         Hand storage hand = hands[requestId];
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
@@ -233,12 +233,17 @@ contract BlackJack is Ownable, Test {
         return (hand, false);
     }
 
-    function getHandFromOneVRF(uint256 x) public pure returns (uint256[] memory) {
+    function getHandFromOneVRF(uint256 num) public pure returns (uint256[] memory) {
         uint256[] memory y = new uint256[](4);
         for (uint256 i = 0; i < 4; i++) {
-            y[i] = (uint8((x / (10 ** i)) % 10));
+            y[i] = (uint8((num / (10 ** i)) % 10));
         }
         return y;
+    }
+
+    function getCardFromOneVrf(uint256 x) public pure  returns (uint256 card, uint256 cardCheck) {
+        card = (uint8(x % 10));
+        cardCheck = (uint8((x / 10) % 10));
     }
 
     function divArr(uint256[] memory arr) external pure returns (uint256) {
