@@ -11,6 +11,7 @@ pragma solidity ^0.8.19;
 
 contract BlackJack is Ownable, Test {
     error NotPossible();
+    error NotOwnerOfHand();
     error NotEnoughFunds();
     error SameHand();
     error BlackJack();
@@ -163,6 +164,12 @@ contract BlackJack is Ownable, Test {
     /// @param newRequestId The new requestId from the VRF
     function getHandFromHit(uint256 handId, uint256 newRequestId) public returns (uint256, uint256) {
         Hand memory hand = hands[handId];
+        if (hand.player != msg.sender) {
+            revert NotOwnerOfHand();
+        }
+        if (hand.isHandPlayedOut) {
+            revert NotPossible();
+        }
         if (hand.playerHand == 100 && hand.dealerHand == 100) {
             revert BlackJack();
         }
