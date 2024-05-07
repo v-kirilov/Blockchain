@@ -178,12 +178,27 @@ contract BlackJack is Ownable, Test {
         hands[newRequestId] = newHand;
     }
 
+    //! Here we can incorporate the logic for the dealer to hit or not.
+    //! Remember 100 is BlackJack
     function finishBet(uint256 requestId) public {
         Hand storage hand = hands[requestId];
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
         hand.isHandPlayedOut = true;
         Player storage player = playerToInfo[hand.player];
+        if (hand.playerHand == 100 && hand.dealerHand == 100) {
+            Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
+        }else if(hand.playerHand == 100){
+            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 25/10);
+        }else if(hand.dealerHand == 100){
+            return;
+        }
+
+        if (hand.playerHand > 21) {
+            return;
+        }else if(hand.dealerHand > 21){
+            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
+        }
 
         if (hand.playerHand > hand.dealerHand) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
