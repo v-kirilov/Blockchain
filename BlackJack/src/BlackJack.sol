@@ -13,6 +13,7 @@ contract BlackJack is Ownable, Test {
     error NotPossible();
     error NotEnoughFunds();
     error SameHand();
+    error BlackJack();
 
     struct Player {
         address wallet;
@@ -133,7 +134,7 @@ contract BlackJack is Ownable, Test {
     }
 
     /// @notice You call this function when you want to get another card for your hand.
-    /// @dev This will return the players hand and the dealers hand.
+    /// @dev This will return the new requestId for the new hand.
     /// @param requestId The requestId from the VRF
     function hit(uint256 requestId) external returns (uint256) {
         Hand storage hand = hands[requestId];
@@ -144,6 +145,18 @@ contract BlackJack is Ownable, Test {
             return requestId;
             //Finish Hand
         }
+        if (hand.playerHand == 100 && hand.dealerHand == 100) {
+            revert BlackJack();
+        }
+        if (hand.playerHand > 21 || hand.dealerHand > 21) {
+            revert NotPossible();
+        }
+
+        uint256 newrequestId = BjVRF.requestRandomWords(1);
+        hand.isHandPlayedOut = true; // Gonna get a new hand after that because this one is played already.
+        return newrequestId;
+    }
+
     /// @notice You call this function when you want to get another card for your hand.
     /// @dev This will return the hand points for both player and dealer.
     /// @param handId The hand Id
@@ -174,7 +187,7 @@ contract BlackJack is Ownable, Test {
             handId, newRequestId, hand.dealerHand, hand.isDealerHandSoft, hand.playerHand, hand.isPlayerHandSoft
         );
         return (hand.playerHand, hand.dealerHand);
-        }
+    }
 
     function calculateHit(uint256 hand, uint256 newCard, uint256 cardCheck)
         private
@@ -233,6 +246,10 @@ contract BlackJack is Ownable, Test {
             return;
         }
 
+        if (hand.dealerHand<16) {
+            //!Hit for the dealer
+        }
+
         if (hand.playerHand > 21) {
             return;
         } else if (hand.dealerHand > 21) {
@@ -245,8 +262,6 @@ contract BlackJack is Ownable, Test {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
         }
         player.isPlayingHand = false;
-
-        //Finish Hand
     }
 
     fallback() external {
