@@ -200,15 +200,15 @@ contract BlackJack is Ownable, Test {
         Player storage player = playerToInfo[hand.player];
         if (hand.playerHand == 100 && hand.dealerHand == 100) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
-        }else if(hand.playerHand == 100){
-            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 25/10);
-        }else if(hand.dealerHand == 100){
+        } else if (hand.playerHand == 100) {
+            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 25 / 10);
+        } else if (hand.dealerHand == 100) {
             return;
         }
 
         if (hand.playerHand > 21) {
             return;
-        }else if(hand.dealerHand > 21){
+        } else if (hand.dealerHand > 21) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
         }
 
