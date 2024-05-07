@@ -144,9 +144,36 @@ contract BlackJack is Ownable, Test {
             return requestId;
             //Finish Hand
         }
-        uint32 numWords = 1;
-        if (hand.dealerHand < 17) {
-            numWords = 2;
+    /// @notice You call this function when you want to get another card for your hand.
+    /// @dev This will return the hand points for both player and dealer.
+    /// @param handId The hand Id
+    /// @param newRequestId The new requestId from the VRF
+    function getHandFromHit(uint256 handId, uint256 newRequestId) public returns (uint256, uint256) {
+        Hand memory hand = hands[handId];
+        if (hand.playerHand == 100 && hand.dealerHand == 100) {
+            revert BlackJack();
+        }
+        if (hand.playerHand > 21 || hand.dealerHand > 21) {
+            revert NotPossible();
+        }
+
+        require(!hand.isHandPlayedOut, "Hand played already");
+        require(hand.isHandDealt, "Hand not dealt");
+        (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(newRequestId);
+        require(isFulfilled, "Request not fulfilled yet!");
+        if (msg.sender != address(this)) {
+            (uint256 playerCard, uint256 playerCardCheck) = getCardFromOneVrf(randomNumbers[0]);
+            (hand.playerHand, hand.isPlayerHandSoft) = calculateHit(hand.playerHand, playerCard, playerCardCheck);
+        } else {
+            (uint256 dealerCard, uint256 dealerCardCheck) = getCardFromOneVrf(randomNumbers[0]);
+            (hand.dealerHand, hand.isDealerHandSoft) = calculateHit(hand.dealerHand, dealerCard, dealerCardCheck);
+        }
+
+        // Record hand
+        makeNewHand(
+            handId, newRequestId, hand.dealerHand, hand.isDealerHandSoft, hand.playerHand, hand.isPlayerHandSoft
+        );
+        return (hand.playerHand, hand.dealerHand);
         }
 
     function calculateHit(uint256 hand, uint256 newCard, uint256 cardCheck)
