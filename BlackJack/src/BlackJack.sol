@@ -149,9 +149,21 @@ contract BlackJack is Ownable, Test {
             numWords = 2;
         }
 
-        uint256 newrequestId = BjVRF.requestRandomWords(numWords); //Need 2 to get cards for the player and for the dealer
-        hand.isHandPlayedOut = true;
-        //Check for the dealer hand , and also for the player hand.
+    function calculateHit(uint256 hand, uint256 newCard, uint256 cardCheck)
+        private
+        returns (uint256, bool isSoftHand)
+    {
+        if (newCard == 1) {
+            if (newCard + 11 > 21) {
+                return (hand + 1, false);
+            } else {
+                return (hand + 11, true);
+            }
+        } else if (newCard - cardCheck > 0) {
+            return (hand + newCard, false);
+        } else {
+            return (hand + 10, false);
+        }
     }
 
     function makeNewHand(
