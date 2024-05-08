@@ -33,6 +33,7 @@ contract BlackJack is Ownable, Test {
         bool isHandDealt;
         uint256 timeHandIsDealt;
         uint256 playerBet;
+        bool isDouble;
     }
 
     BUSDC private Btoken;
@@ -96,7 +97,7 @@ contract BlackJack is Ownable, Test {
         Btoken.transferFrom(msg.sender, address(this), bet);
         uint256 newrequestId = BjVRF.requestRandomWords(numWords); //Need 2 to get cards for the player and for the dealer
 
-        Hand memory hand = Hand(msg.sender, newrequestId, 0, false, 0, false, false, false, block.timestamp, bet);
+        Hand memory hand = Hand(msg.sender, newrequestId, 0, false, 0, false, false, false, block.timestamp, bet,false);
         hands[newrequestId] = hand;
 
         player.isPlayingHand = true;
@@ -130,9 +131,27 @@ contract BlackJack is Ownable, Test {
         hand.timeHandIsDealt = block.timestamp;
         hand.isDealerHandSoft = isDealerHandSoft;
         hand.isPlayerHandSoft = isPlayerHandSoft;
-        //! How to handle 'HIT' and 'DOUBLE' logic?
+        //! How to handle 'DOUBLE' logic?
 
         return (playerHand, dealerHand);
+    }
+
+    function double(uint256 requestId) public returns (uint256) {
+        Hand storage hand = hands[requestId];
+        require(hand.isHandDealt, "Hand not dealt yet!");
+        require(!hand.isHandPlayedOut, "Hand is played out!");
+        require(!hand.isDouble, "Hand is doubled!");
+           if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
+            finishBet(requestId);
+            return requestId;
+            //Finish Hand
+        }
+        uint256 newRequestId = hit(requestId);
+        Btoken.transferFrom(msg.sender, address(this), hand.playerBet);
+        hand.isDouble = true;
+        hand.playerBet = hand.playerBet * 2;
+        hand.timeHandIsDealt = block.timestamp;
+        return newRequestId;
     }
 
     /// @notice You call this function when you want to get another card for your hand.
@@ -233,14 +252,16 @@ contract BlackJack is Ownable, Test {
             oldHand.isHandPlayedOut,
             oldHand.isHandDealt,
             block.timestamp,
-            oldHand.playerBet
+            oldHand.playerBet,
+            oldHand.isDouble
         );
         hands[newRequestId] = newHand;
     }
 
-    //! Here we can incorporate the logic for the dealer to hit or not.
-    //! Remember 100 is BlackJack
-    function finishBet(uint256 handId) public returns(string memory){
+    /// @notice This function is called to finish a bet , but if the dealer has less than 16 points, it will hit.
+    /// @dev Returns a string with the result of the hand, in case the dealer has to hit than it returns the newRequestId.
+    /// @param handId The hand Id
+    function finishBet(uint256 handId) public returns (string memory) {
         Hand storage hand = hands[handId];
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
@@ -258,9 +279,10 @@ contract BlackJack is Ownable, Test {
             return "Dealer has BlackJack!";
         }
 
-        if (hand.dealerHand<16) {
-           uint256 newRequestId = hit(handId);
-           return Strings.toString(newRequestId);
+        if (hand.dealerHand < 16) {
+            uint256 newRequestId = hit(handId);
+            hand.timeHandIsDealt = block.timestamp;
+            return Strings.toString(newRequestId); //Returns the newRequestId
         }
 
         if (hand.playerHand > 21) {
