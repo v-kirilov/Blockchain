@@ -2,6 +2,7 @@
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "./BlackJackDataFeed.sol";
 import "./BlackJackVRF.sol";
 import "./BUSDC.sol";
@@ -137,7 +138,7 @@ contract BlackJack is Ownable, Test {
     /// @notice You call this function when you want to get another card for your hand.
     /// @dev This will return the new requestId for the new hand.
     /// @param requestId The requestId from the VRF
-    function hit(uint256 requestId) external returns (uint256) {
+    function hit(uint256 requestId) public returns (uint256) {
         Hand storage hand = hands[requestId];
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
@@ -239,36 +240,43 @@ contract BlackJack is Ownable, Test {
 
     //! Here we can incorporate the logic for the dealer to hit or not.
     //! Remember 100 is BlackJack
-    function finishBet(uint256 requestId) public {
-        Hand storage hand = hands[requestId];
+    function finishBet(uint256 handId) public returns(string memory){
+        Hand storage hand = hands[handId];
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
         hand.isHandPlayedOut = true;
         Player storage player = playerToInfo[hand.player];
+        player.isPlayingHand = false;
+
         if (hand.playerHand == 100 && hand.dealerHand == 100) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
+            return "Push";
         } else if (hand.playerHand == 100) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 25 / 10);
+            return "BlackJack!";
         } else if (hand.dealerHand == 100) {
-            return;
+            return "Dealer has BlackJack!";
         }
 
         if (hand.dealerHand<16) {
-            //!Hit for the dealer
+           uint256 newRequestId = hit(handId);
+           return Strings.toString(newRequestId);
         }
 
         if (hand.playerHand > 21) {
-            return;
+            return "Player busts";
         } else if (hand.dealerHand > 21) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
+            return "Dealer busts";
         }
 
         if (hand.playerHand > hand.dealerHand) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
+            return "Player wins";
         } else if (hand.playerHand == hand.dealerHand) {
             Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
+            return "Push";
         }
-        player.isPlayingHand = false;
     }
 
     fallback() external {
