@@ -28,12 +28,15 @@ contract BlackJackTest is Test {
         busdc.setBJaddress(address(blackJack));
         player = address(0x123);
         vm.deal(player, 1 ether);
-        busdc.mint(address(blackJack), 10000e18);
     }
 
     function registerPlayer() public {
         vm.prank(player);
         blackJack.registerPlayer{value: 1 ether}();
+    }
+
+    function mintToBJContract() public {
+        busdc.mint(address(blackJack), 10000e18);
     }
 
     function testRegisterPlayer() public {
@@ -61,14 +64,27 @@ contract BlackJackTest is Test {
         console.log("Player ETH balance after withdraw: ", player.balance);
     }
 
-    function testPlaceBetReverts() public {
+    function testEnterBetRevertsWithInsufficientDealerFunds() public {
+        uint256 bet = 1000e18; 
         registerPlayer();
         vm.startPrank(player);
-        uint256 handId = blackJack.enterBet(1000e18);
-        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        busdc.approve(address(blackJack), bet);
+        vm.expectRevert("Insufficient dealer funds");
+        uint256 handId = blackJack.enterBet(bet);
 
         vm.stopPrank();
-        vm.expectRevert("Insufficient dealer funds");
+    }
+
+    function testEnterBetRevertsWithNotAllowed()  public {
+        uint256 bet = 1000e18; 
+
+        testEnterBetSuccess();
+        vm.startPrank(player);
+        vm.expectRevert("Not allowed");
+        uint256 handId = blackJack.enterBet(bet);
+
+        vm.stopPrank();
     }
 
     function testRequestRandomWords() public {
@@ -105,6 +121,7 @@ contract BlackJackTest is Test {
     function testPlaceBetSuccess() public {
         uint256 bet = 1000e18;
         registerPlayer();
+        mintToBJContract();
         vm.startPrank(player);
         busdc.approve(address(blackJack), bet);
         uint256 handId = blackJack.enterBet(bet);
