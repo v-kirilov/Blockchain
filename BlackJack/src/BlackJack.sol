@@ -131,8 +131,7 @@ contract BlackJack is Ownable, Test {
         hand.timeHandIsDealt = block.timestamp;
         hand.isDealerHandSoft = isDealerHandSoft;
         hand.isPlayerHandSoft = isPlayerHandSoft;
-        //! How to handle 'DOUBLE' logic?
-
+        
         return (playerHand, dealerHand);
     }
 
