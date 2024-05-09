@@ -35,6 +35,20 @@ contract BlackJackTest is Test {
         blackJack.registerPlayer{value: 1 ether}();
     }
 
+    function testregisterPlayerRevertsWhenNoFundsAreSent() public {
+        vm.prank(player);
+        vm.expectRevert("No funds sent");
+        blackJack.registerPlayer{value: 0 ether}();
+    }
+
+    function testregisterPlayerRevertsWhenIsAlreadyRegistered() public {
+        vm.startPrank(player);
+        blackJack.registerPlayer{value: 0.5 ether}();
+        vm.expectRevert("Registered already");
+        blackJack.registerPlayer{value: 0.5 ether}();
+        vm.stopPrank();
+    }
+
     function mintToBJContract() public {
         busdc.mint(address(blackJack), 10000e18);
     }
@@ -65,7 +79,7 @@ contract BlackJackTest is Test {
     }
 
     function testEnterBetRevertsWithInsufficientDealerFunds() public {
-        uint256 bet = 1000e18; 
+        uint256 bet = 1000e18;
         registerPlayer();
         vm.startPrank(player);
 
@@ -76,8 +90,8 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-    function testEnterBetRevertsWithNotAllowed()  public {
-        uint256 bet = 1000e18; 
+    function testEnterBetRevertsWithNotAllowed() public {
+        uint256 bet = 1000e18;
 
         testEnterBetSuccess();
         vm.startPrank(player);
@@ -131,5 +145,20 @@ contract BlackJackTest is Test {
         vm.stopPrank();
         console.log("Player hand is: ", uint256(playerHand));
         console.log("Dealer hand is: ", uint256(dealerHand));
+    }
+
+    function testgetHandRevertsWithHandDealtAlready() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+        vm.startPrank(player);
+        busdc.approve(address(blackJack), bet);
+        uint256 handId = blackJack.enterBet(bet);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+        vm.expectRevert("Hand dealt already");
+        (int256 playerHand2, int256 dealerHand2) = blackJack.getHand(handId);
+
+        vm.stopPrank();
     }
 }
