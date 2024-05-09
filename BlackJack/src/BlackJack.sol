@@ -117,9 +117,10 @@ contract BlackJack is Ownable, Test {
         (int256 playerHand, bool isPlayerHandSoft) = calculateHand(playerPoints);
         (int256 dealerHand, bool isDealerHandSoft) = calculateHand(dealerPoints);
 
-        // Record the hands;
+        // Record the hand;
         hand.playerHand = uint256(playerHand);
         hand.dealerHand = uint256(dealerHand);
+
         hand.isHandDealt = true;
         hand.timeHandIsDealt = block.timestamp;
         hand.isDealerHandSoft = isDealerHandSoft;
@@ -271,8 +272,10 @@ contract BlackJack is Ownable, Test {
 
     function finishBet(uint256 handId) public returns (string memory) {
         Hand storage hand = hands[handId];
+
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
+
         hand.isHandPlayedOut = true;
         Player storage player = playerToInfo[hand.player];
         player.isPlayingHand = false;
@@ -288,6 +291,7 @@ contract BlackJack is Ownable, Test {
         }
 
         if (hand.dealerHand < 16) {
+            hand.isHandPlayedOut = false;
             uint256 newRequestId = hit(handId);
             hand.timeHandIsDealt = block.timestamp;
             return Strings.toString(newRequestId); //Returns the newRequestId
@@ -430,6 +434,30 @@ contract BlackJack is Ownable, Test {
 
     function renounceOwnership() public view override onlyOwner {
         revert NotPossible();
+    }
+
+    function getHandInfo(uint256 handId)
+        public
+        returns (address, uint256, uint256, bool, uint256, bool, bool, bool, uint256, uint256, bool)
+    {
+        Hand memory hand = hands[handId];
+        return (
+            hand.player,
+            hand.id,
+            hand.dealerHand,
+            hand.isDealerHandSoft,
+            hand.playerHand,
+            hand.isPlayerHandSoft,
+            hand.isHandPlayedOut,
+            hand.isHandDealt,
+            hand.timeHandIsDealt,
+            hand.playerBet,
+            hand.isDouble
+        );
+    }
+
+    function isHandPlayedOut(uint256 handId) public returns (bool) {
+        return hands[handId].isHandPlayedOut;
     }
 
     //29945765205364088472206773663980124860540389433803418837288208938022581593899
