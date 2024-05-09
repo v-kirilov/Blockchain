@@ -73,17 +73,10 @@ contract BlackJack is Ownable, Test {
         Btoken.mint(msg.sender, amountToMint);
     }
 
-    function testCallVrf(uint32 numWords) public returns (uint256) {
-        return BjVRF.requestRandomWords(numWords);
-    }
-
-    function testCallBJDataFeed() public returns (int256) {
-        return BjDataFeed.getChainlinkDataFeedLatestAnswer();
-    }
-
     /// @notice You call this function to enter a bet as a player.
     /// @dev Player enters bet, funds are being transfered to the contract from the player.
     /// @dev Requires for the player to not be playing a hand.
+    /// @param bet The bet amount in BUSDC.
 
     function enterBet(uint256 bet) external returns (uint256) {
         //Gotta make sure we are not playing the same hand over and over again.
@@ -97,7 +90,7 @@ contract BlackJack is Ownable, Test {
         Btoken.transferFrom(msg.sender, address(this), bet);
         uint256 newrequestId = BjVRF.requestRandomWords(numWords); //Need 2 to get cards for the player and for the dealer
 
-        Hand memory hand = Hand(msg.sender, newrequestId, 0, false, 0, false, false, false, block.timestamp, bet,false);
+        Hand memory hand = Hand(msg.sender, newrequestId, 0, false, 0, false, false, false, block.timestamp, bet, false);
         hands[newrequestId] = hand;
 
         player.isPlayingHand = true;
@@ -107,7 +100,7 @@ contract BlackJack is Ownable, Test {
 
     /// @notice You call this function after you've registered and entered a bet.
     /// @dev This will return the players hand and the dealers hand.
-    /// @param requestId The requestId from the VRF
+    /// @param requestId The requestId from the VRF.
 
     function getHand(uint256 requestId) public returns (int256, int256) {
         //require(!isHandPlayed[requestId], "Hand played already");
@@ -117,9 +110,9 @@ contract BlackJack is Ownable, Test {
         (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(requestId);
 
         require(isFulfilled, "Request not fulfilled");
-        uint256[] memory playerPoints = getHandFromOneVRF(randomNumbers[0]);
+        uint256[] memory playerPoints = getHandFromRandomNumber(randomNumbers[0]);
 
-        uint256[] memory dealerPoints = getHandFromOneVRF(randomNumbers[1]);
+        uint256[] memory dealerPoints = getHandFromRandomNumber(randomNumbers[1]);
 
         (int256 playerHand, bool isPlayerHandSoft) = calculateHand(playerPoints);
         (int256 dealerHand, bool isDealerHandSoft) = calculateHand(dealerPoints);
@@ -131,16 +124,20 @@ contract BlackJack is Ownable, Test {
         hand.timeHandIsDealt = block.timestamp;
         hand.isDealerHandSoft = isDealerHandSoft;
         hand.isPlayerHandSoft = isPlayerHandSoft;
-        
+
         return (playerHand, dealerHand);
     }
+
+    /// @notice You call this function after the player got his hand to double down on his bet.
+    /// @dev This will return the new handId for the new hand.
+    /// @param requestId The requestId from the VRF, which is also the handId.
 
     function double(uint256 requestId) public returns (uint256) {
         Hand storage hand = hands[requestId];
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
         require(!hand.isDouble, "Hand is doubled!");
-           if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
+        if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
             finishBet(requestId);
             return requestId;
             //Finish Hand
@@ -155,7 +152,8 @@ contract BlackJack is Ownable, Test {
 
     /// @notice You call this function when you want to get another card for your hand.
     /// @dev This will return the new requestId for the new hand.
-    /// @param requestId The requestId from the VRF
+    /// @param requestId The requestId from the VRF.
+
     function hit(uint256 requestId) public returns (uint256) {
         Hand storage hand = hands[requestId];
         require(hand.isHandDealt, "Hand not dealt yet!");
@@ -179,8 +177,9 @@ contract BlackJack is Ownable, Test {
 
     /// @notice You call this function when you want to get another card for your hand.
     /// @dev This will return the hand points for both player and dealer.
-    /// @param handId The hand Id
-    /// @param newRequestId The new requestId from the VRF
+    /// @param handId The hand Id.
+    /// @param newRequestId The new requestId from the VRF.
+
     function getHandFromHit(uint256 handId, uint256 newRequestId) public returns (uint256, uint256) {
         Hand memory hand = hands[handId];
         if (hand.player != msg.sender) {
@@ -201,10 +200,10 @@ contract BlackJack is Ownable, Test {
         (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(newRequestId);
         require(isFulfilled, "Request not fulfilled yet!");
         if (msg.sender != address(this)) {
-            (uint256 playerCard, uint256 playerCardCheck) = getCardFromOneVrf(randomNumbers[0]);
+            (uint256 playerCard, uint256 playerCardCheck) = getCardFromRadnomNumber(randomNumbers[0]);
             (hand.playerHand, hand.isPlayerHandSoft) = calculateHit(hand.playerHand, playerCard, playerCardCheck);
         } else {
-            (uint256 dealerCard, uint256 dealerCardCheck) = getCardFromOneVrf(randomNumbers[0]);
+            (uint256 dealerCard, uint256 dealerCardCheck) = getCardFromRadnomNumber(randomNumbers[0]);
             (hand.dealerHand, hand.isDealerHandSoft) = calculateHit(hand.dealerHand, dealerCard, dealerCardCheck);
         }
 
@@ -214,6 +213,12 @@ contract BlackJack is Ownable, Test {
         );
         return (hand.playerHand, hand.dealerHand);
     }
+
+    /// @notice This function is called to calculate the hand points when there is another hit.
+    /// @dev This will return the hand points and if the hand is soft or not.
+    /// @param hand The hand Id.
+    /// @param newCard The new card from the VRF.
+    /// @param cardCheck The new cardCheck from the VRF.
 
     function calculateHit(uint256 hand, uint256 newCard, uint256 cardCheck)
         private
@@ -231,6 +236,9 @@ contract BlackJack is Ownable, Test {
             return (hand + 10, false);
         }
     }
+
+    /// @notice This function is called to make a new hand when a hand is being hit or doubled.
+    /// @dev The new hand will be saved in the hands mapping.
 
     function makeNewHand(
         uint256 requestId,
@@ -259,7 +267,8 @@ contract BlackJack is Ownable, Test {
 
     /// @notice This function is called to finish a bet , but if the dealer has less than 16 points, it will hit.
     /// @dev Returns a string with the result of the hand, in case the dealer has to hit than it returns the newRequestId.
-    /// @param handId The hand Id
+    /// @param handId The hand Id.
+
     function finishBet(uint256 handId) public returns (string memory) {
         Hand storage hand = hands[handId];
         require(hand.isHandDealt, "Hand not dealt yet!");
@@ -304,10 +313,17 @@ contract BlackJack is Ownable, Test {
         registerPlayer();
     }
 
+    /// @notice This function is called to see the ramining player funds.
+    /// @dev Returns a uint of the remaining player funds.
+
     function remainingPlayerFunds() external view returns (uint256) {
         Player memory player = playerToInfo[msg.sender];
         return Btoken.balanceOf(msg.sender); // In BUSDC
     }
+
+    /// @notice This function is called when a player want to withdraw funds.
+    /// @dev The function will calculate the value of BUSDC in ether and send the amount in ETH to the player.
+    /// @param amount The amount the player wants to withdraw in BUSDC.
 
     function withdrawFunds(uint256 amount) external {
         Player storage player = playerToInfo[msg.sender];
@@ -324,6 +340,10 @@ contract BlackJack is Ownable, Test {
         int256 feed = BjDataFeed.getChainlinkDataFeedLatestAnswer();
         return feed;
     }
+
+    /// @notice This function is called when a player enters a bet and wants to get his hand and the hand for the dealer.
+    /// @dev The function will calculate the hands for player and dealer and perform the neccesarry checks for the hands.
+    /// @param handPoints Array of handpoints that contain the card and the check for the card.
 
     function calculateHand(uint256[] memory handPoints) private pure returns (int256, bool) {
         int256 firstCard = int256(handPoints[0]);
@@ -381,7 +401,10 @@ contract BlackJack is Ownable, Test {
         return (hand, false);
     }
 
-    function getHandFromOneVRF(uint256 num) public pure returns (uint256[] memory) {
+    /// @notice This function extracts from a vrf value, the hand that is required.
+    /// @param num A random number from the chainlink VRF.
+
+    function getHandFromRandomNumber(uint256 num) private pure returns (uint256[] memory) {
         uint256[] memory y = new uint256[](4);
         for (uint256 i = 0; i < 4; i++) {
             y[i] = (uint8((num / (10 ** i)) % 10));
@@ -389,18 +412,16 @@ contract BlackJack is Ownable, Test {
         return y;
     }
 
-    function getCardFromOneVrf(uint256 x) public pure returns (uint256 card, uint256 cardCheck) {
-        card = (uint8(x % 10));
-        cardCheck = (uint8((x / 10) % 10));
+    /// @notice This function extracts from a vrf value, the card that is required.
+    /// @param num A random number from the chainlink VRF.
+
+    function getCardFromRadnomNumber(uint256 num) private pure returns (uint256 card, uint256 cardCheck) {
+        card = (uint8(num % 10));
+        cardCheck = (uint8((num / 10) % 10));
     }
 
-    function divArr(uint256[] memory arr) external pure returns (uint256) {
-        uint256 sum = 0;
-        for (uint256 i = 0; i < arr.length; i++) {
-            sum += arr[i] % 10;
-        }
-        return sum;
-    }
+    /// @notice This function returns information about a player.
+    /// @param playerAddress An address of a player.
 
     function getPlayerStats(address playerAddress) public view returns (address, uint256, bool) {
         Player memory player = playerToInfo[playerAddress];
