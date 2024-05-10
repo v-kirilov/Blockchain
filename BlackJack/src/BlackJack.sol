@@ -44,6 +44,13 @@ contract BlackJack is Ownable, Test {
     mapping(address => Player) public playerToInfo; //Here we store player info
     mapping(uint256 handId => Hand hands) hands; //Store information about hands
 
+    event RegisterPlayer(address indexed player, uint256 indexed amount);
+    event EnterBet(address indexed player, uint256 indexed bet);
+    event GetHand(address indexed player, uint256 indexed requestId);
+    event DoubleBet(address indexed player, uint256 indexed handId);
+    event Hit(address indexed player, uint256 indexed handId);
+    event FinishBet(uint256 indexed handId);
+
     //address constant USDCAddress = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
 
     modifier onlyowner() {
@@ -71,6 +78,7 @@ contract BlackJack is Ownable, Test {
         playerToInfo[msg.sender] = newPlayer;
 
         Btoken.mint(msg.sender, amountToMint);
+        emit RegisterPlayer(msg.sender, msg.value);
     }
 
     /// @notice You call this function to enter a bet as a player.
@@ -95,6 +103,7 @@ contract BlackJack is Ownable, Test {
 
         player.isPlayingHand = true;
 
+        emit EnterBet(msg.sender, bet);
         return newrequestId;
     }
 
@@ -126,6 +135,7 @@ contract BlackJack is Ownable, Test {
         hand.isDealerHandSoft = isDealerHandSoft;
         hand.isPlayerHandSoft = isPlayerHandSoft;
 
+        emit GetHand(msg.sender, requestId);
         return (playerHand, dealerHand);
     }
 
@@ -148,6 +158,8 @@ contract BlackJack is Ownable, Test {
         hand.isDouble = true;
         hand.playerBet = hand.playerBet * 2;
         hand.timeHandIsDealt = block.timestamp;
+
+        emit DoubleBet(msg.sender, requestId);
         return newRequestId;
     }
 
@@ -173,6 +185,8 @@ contract BlackJack is Ownable, Test {
 
         uint256 newrequestId = BjVRF.requestRandomWords(1);
         hand.isHandPlayedOut = true; // Gonna get a new hand after that because this one is played already.
+
+        emit Hit(msg.sender, requestId);
         return newrequestId;
     }
 
@@ -281,10 +295,10 @@ contract BlackJack is Ownable, Test {
         player.isPlayingHand = false;
 
         if (hand.playerHand == 100 && hand.dealerHand == 100) {
-            Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
+            Btoken.transfer(msg.sender, hand.playerBet);
             return "Push";
         } else if (hand.playerHand == 100) {
-            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 25 / 10);
+            Btoken.transfer(msg.sender, hand.playerBet * 25 / 10);
             return "BlackJack!";
         } else if (hand.dealerHand == 100) {
             return "Dealer has BlackJack!";
@@ -300,15 +314,15 @@ contract BlackJack is Ownable, Test {
         if (hand.playerHand > 21) {
             return "Player busts";
         } else if (hand.dealerHand > 21) {
-            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
+            Btoken.transfer(msg.sender, hand.playerBet * 2);
             return "Dealer busts";
         }
 
         if (hand.playerHand > hand.dealerHand) {
-            Btoken.transferFrom(address(this), msg.sender, hand.playerBet * 2);
+            Btoken.transfer(msg.sender, hand.playerBet * 2);
             return "Player wins";
         } else if (hand.playerHand == hand.dealerHand) {
-            Btoken.transferFrom(address(this), msg.sender, hand.playerBet);
+            Btoken.transfer(msg.sender, hand.playerBet);
             return "Push";
         }
     }
