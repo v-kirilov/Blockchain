@@ -107,32 +107,21 @@ contract BlackJackTest is Test {
         console.log("New Request ID: ", newRequestId);
     }
 
-    function testVrfThroughBJ() public {
-        vm.prank(address(blackJack));
-        uint32 numWords = 2;
-        uint256 requestId = blackJack.testCallVrf(numWords);
-        console.log("Request ID: ", requestId);
-    }
-
-    function testDataVrfThroughBJ() public {
-        vm.prank(address(blackJack));
-        int256 requestId = blackJack.testCallBJDataFeed();
-        console.log("Price is: ", uint256(requestId));
-    }
-
     function testEnterBetSuccess() public {
         uint256 bet = 1000e18;
-        busdc.mint(address(blackJack), 10000e18);
+        mintToBJContract();
         registerPlayer();
         vm.startPrank(player);
         busdc.approve(address(blackJack), bet);
         uint256 handId = blackJack.enterBet(bet);
 
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(dealerFunds, 10000e18 + bet);
         vm.stopPrank();
         console.log("Hand ID: ", handId);
     }
 
-    function testPlaceBetSuccess() public {
+    function testPlaceBetAndGetHandSuccess() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -159,6 +148,28 @@ contract BlackJackTest is Test {
         vm.expectRevert("Hand dealt already");
         (int256 playerHand2, int256 dealerHand2) = blackJack.getHand(handId);
 
+        vm.stopPrank();
+    }
+
+    function testFinishBetSuccess() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+        vm.startPrank(player);
+        busdc.approve(address(blackJack), bet);
+        uint256 handId = blackJack.enterBet(bet);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        string memory result = blackJack.finishBet(handId);
+
+        console.log("Result: ", result);
+
+        uint256 playerFunds = busdc.balanceOf(player);
+        assertEq(playerFunds, 3000e18);
         vm.stopPrank();
     }
 }
