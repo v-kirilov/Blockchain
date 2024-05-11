@@ -29,8 +29,9 @@ contract Deploy is Script {
         dataFeed = new BlackJackDataFeed(dataFeedAddress);
         blackJackVRF = new BlackJackVRF(s_subscriptionId,coordinator, keyHash);
         blackJack = new BlackJack(address(busdc), address(dataFeed), address(blackJackVRF));
+        
+        blackJackVRF.setBJaddress(address(blackJack));
 
         vm.stopBroadcast();
     }
 }
-
