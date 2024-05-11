@@ -69,13 +69,12 @@ contract BlackJackVRF is VRFConsumerBaseV2, Ownable {
      * HARDCODED FOR SEPOLIA
      * COORDINATOR: 0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625
      */
-    constructor(uint64 subscriptionId, address coordinator, address bjAddress, bytes32 _keyHash)
+    constructor(uint64 subscriptionId, address coordinator, bytes32 _keyHash)
         VRFConsumerBaseV2(coordinator)
         Ownable(msg.sender)
     {
         COORDINATOR = VRFCoordinatorV2Interface(coordinator);
         s_subscriptionId = subscriptionId;
-        BlackJack = bjAddress;
         keyHash = _keyHash;
     }
 
