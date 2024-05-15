@@ -136,6 +136,7 @@ contract BlackJackTest is Test {
         vm.startPrank(winner);
         busdc.approve(address(blackJack), bet);
         uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(1);
 
         (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
 
@@ -151,6 +152,7 @@ contract BlackJackTest is Test {
         vm.startPrank(winner);
         busdc.approve(address(blackJack), bet);
         uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(1);
 
         (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
         vm.expectRevert("Hand dealt already");
