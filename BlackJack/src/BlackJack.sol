@@ -286,7 +286,7 @@ contract BlackJack is Ownable, Test {
 
     function finishBet(uint256 handId) public returns (string memory) {
         Hand storage hand = hands[handId];
-
+        require(hand.player != address(0), "Hand not dealt yet-no player!");
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
 
@@ -304,6 +304,7 @@ contract BlackJack is Ownable, Test {
             return "Dealer has BlackJack!";
         }
 
+        //ISSOFT???????????
         if (hand.dealerHand < 16) {
             hand.isHandPlayedOut = false;
             uint256 newRequestId = hit(handId);
@@ -368,6 +369,7 @@ contract BlackJack is Ownable, Test {
         int256 secondCard = int256(handPoints[1]);
         int256 firstCheck = int256(handPoints[2]);
         int256 secondCheck = int256(handPoints[3]);
+ 
         int256 hand = 0;
 
         //Check if we have 10's from 0s
