@@ -258,6 +258,87 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
+    function testFinishBetDealerAndPlayerGetBJ() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(3);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        string memory result = blackJack.finishBet(handId);
+
+        console.log("Result: ", result);
+
+        uint256 playerFunds = busdc.balanceOf(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 3000e18);
+        assertEq(dealerFunds, 10000e18);
+        vm.stopPrank();
+    }
+
+        function testFinishBetDealerGetsBJ() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(4);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        string memory result = blackJack.finishBet(handId);
+
+        console.log("Result: ", result);
+
+        uint256 playerFunds = busdc.balanceOf(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 2000e18);
+        assertEq(dealerFunds, 11000e18);
+        vm.stopPrank();
+    }
+
+            function testFinishBetPlayerGetsBJ() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(5);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        string memory result = blackJack.finishBet(handId);
+
+        console.log("Result: ", result);
+
+        uint256 playerFunds = busdc.balanceOf(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 4500e18);
+        assertEq(dealerFunds, 8500e18);
+        vm.stopPrank();
+    }
+
     function testDoubleRevertsWithPlayedoutHand() public {
         uint256 bet = 1000e18;
         registerPlayer();
@@ -326,7 +407,7 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-        function testDoubleFinishesHandInstead() public {
+    function testDoubleFinishesHandInstead() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -344,17 +425,17 @@ contract BlackJackTest is Test {
         console.log("Player hand is: ", uint256(playerHand));
         console.log("Dealer hand is: ", uint256(dealerHand));
 
-        vm.warp(DURATION_OF_HAND+10);
+        vm.warp(DURATION_OF_HAND + 10);
         vm.roll(10);
 
         busdc.approve(address(blackJack), bet);
         uint256 newHandId = blackJack.double(handId);
         console.log("New hand ID: ", newHandId);
 
-        (,,,,,,bool isHandPlayedOut,,,, bool isDoubled) = blackJack.getHandInfo(handId);
+        (,,,,,, bool isHandPlayedOut,,,, bool isDoubled) = blackJack.getHandInfo(handId);
         assertEq(isDoubled, false);
-        assertEq(handId,newHandId);
-        assertEq(isHandPlayedOut,true);
+        assertEq(handId, newHandId);
+        assertEq(isHandPlayedOut, true);
 
         vm.stopPrank();
     }
