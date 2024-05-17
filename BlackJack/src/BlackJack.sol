@@ -42,7 +42,7 @@ contract BlackJack is Ownable, Test {
     uint256 constant DURATION_OF_HAND = 10 * 20; //Max of 10 blocks
 
     mapping(address => Player) public playerToInfo; //Here we store player info
-    mapping(uint256 handId => Hand hands) hands; //Store information about hands
+    mapping(uint256 handId => Hand hands) public hands; //Store information about hands
 
     event RegisterPlayer(address indexed player, uint256 indexed amount);
     event EnterBet(address indexed player, uint256 indexed bet);
@@ -119,10 +119,10 @@ contract BlackJack is Ownable, Test {
         (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(requestId);
 
         require(isFulfilled, "Request not fulfilled");
+
         uint256[] memory playerPoints = getHandFromRandomNumber(randomNumbers[0]);
-
         uint256[] memory dealerPoints = getHandFromRandomNumber(randomNumbers[1]);
-
+     
         (int256 playerHand, bool isPlayerHandSoft) = calculateHand(playerPoints);
         (int256 dealerHand, bool isDealerHandSoft) = calculateHand(dealerPoints);
 
@@ -142,12 +142,12 @@ contract BlackJack is Ownable, Test {
     /// @notice You call this function after the player got his hand to double down on his bet.
     /// @dev This will return the new handId for the new hand.
     /// @param requestId The requestId from the VRF, which is also the handId.
+    //!NEW HAND MUST BE DOUBLED
 
     function double(uint256 requestId) public returns (uint256) {
         Hand storage hand = hands[requestId];
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
-        require(!hand.isDouble, "Hand is doubled!");
         if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
             finishBet(requestId);
             return requestId;
@@ -215,10 +215,10 @@ contract BlackJack is Ownable, Test {
         (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(newRequestId);
         require(isFulfilled, "Request not fulfilled yet!");
         if (msg.sender != address(this)) {
-            (uint256 playerCard, uint256 playerCardCheck) = getCardFromRadnomNumber(randomNumbers[0]);
+            (uint256 playerCard, uint256 playerCardCheck) = getCardFromRandomNumber(randomNumbers[0]);
             (hand.playerHand, hand.isPlayerHandSoft) = calculateHit(hand.playerHand, playerCard, playerCardCheck);
         } else {
-            (uint256 dealerCard, uint256 dealerCardCheck) = getCardFromRadnomNumber(randomNumbers[0]);
+            (uint256 dealerCard, uint256 dealerCardCheck) = getCardFromRandomNumber(randomNumbers[0]);
             (hand.dealerHand, hand.isDealerHandSoft) = calculateHit(hand.dealerHand, dealerCard, dealerCardCheck);
         }
 
@@ -306,7 +306,7 @@ contract BlackJack is Ownable, Test {
 
         //ISSOFT???????????
         if (hand.dealerHand < 16) {
-            hand.isHandPlayedOut = false;
+            hand.isHandPlayedOut = false; //! THIS IS NOT POSSIBLE
             uint256 newRequestId = hit(handId);
             hand.timeHandIsDealt = block.timestamp;
             return Strings.toString(newRequestId); //Returns the newRequestId
@@ -364,12 +364,13 @@ contract BlackJack is Ownable, Test {
     /// @dev The function will calculate the hands for player and dealer and perform the neccesarry checks for the hands.
     /// @param handPoints Array of handpoints that contain the card and the check for the card.
 
-    function calculateHand(uint256[] memory handPoints) private pure returns (int256, bool) {
+    function calculateHand(uint256[] memory handPoints) private view returns (int256, bool) {
+        //!CHange back to pure
         int256 firstCard = int256(handPoints[0]);
         int256 secondCard = int256(handPoints[1]);
         int256 firstCheck = int256(handPoints[2]);
         int256 secondCheck = int256(handPoints[3]);
- 
+
         int256 hand = 0;
 
         //Check if we have 10's from 0s
@@ -379,30 +380,33 @@ contract BlackJack is Ownable, Test {
         if (secondCard == 0) {
             secondCard = 10;
         }
+        if (firstCard == 10 && secondCard == 10) {
+            hand = 20;
+            return (hand, false);
+        }
 
         //Check if we have 10's by substracting
-        if (firstCard != 0 && firstCard != 1) {
+        if (firstCard != 10 && firstCard != 1) {
             //Make check if it is <0
             if (firstCard - firstCheck < 0) {
                 firstCard = 10;
             }
         }
-        if (secondCard != 0 && secondCard != 1) {
+        if (secondCard != 10 && secondCard != 1) {
             //Make check if it is <0
             if (secondCard - secondCheck < 0) {
                 secondCard = 10;
             }
         }
 
-        //Check if we have Blackjack
-        if ((firstCard == 10 && firstCard == 1) || (secondCard == 10 && secondCard == 1)) {
+        //Check if we have Blackjack 
+        if ((firstCard == 10 && secondCard == 1) || (firstCard == 1 && secondCard == 10)) {
             hand = 100;
             return (hand, false); //BlackJack!
         }
         //Check if we have two aces
         if (firstCard == 1 && secondCard == 1) {
             hand = 12;
-
             return (hand, true);
         }
         //Check if we have soft hand
@@ -435,7 +439,7 @@ contract BlackJack is Ownable, Test {
     /// @notice This function extracts from a vrf value, the card that is required.
     /// @param num A random number from the chainlink VRF.
 
-    function getCardFromRadnomNumber(uint256 num) private pure returns (uint256 card, uint256 cardCheck) {
+    function getCardFromRandomNumber(uint256 num) private pure returns (uint256 card, uint256 cardCheck) {
         card = (uint8(num % 10));
         cardCheck = (uint8((num / 10) % 10));
     }
