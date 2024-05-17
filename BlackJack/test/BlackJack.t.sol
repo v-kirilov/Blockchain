@@ -325,4 +325,37 @@ contract BlackJackTest is Test {
 
         vm.stopPrank();
     }
+
+        function testDoubleFinishesHandInstead() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        console.log("Old hand ID: ", handId);
+
+        bjVRFMock.setReturnNumbers(2);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        vm.warp(DURATION_OF_HAND+10);
+        vm.roll(10);
+
+        busdc.approve(address(blackJack), bet);
+        uint256 newHandId = blackJack.double(handId);
+        console.log("New hand ID: ", newHandId);
+
+        (,,,,,,bool isHandPlayedOut,,,, bool isDoubled) = blackJack.getHandInfo(handId);
+        assertEq(isDoubled, false);
+        assertEq(handId,newHandId);
+        assertEq(isHandPlayedOut,true);
+
+        vm.stopPrank();
+    }
 }
