@@ -285,7 +285,7 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-        function testFinishBetDealerGetsBJ() public {
+    function testFinishBetDealerGetsBJ() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -312,7 +312,7 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-            function testFinishBetPlayerGetsBJ() public {
+    function testFinishBetPlayerGetsBJ() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -336,6 +336,35 @@ contract BlackJackTest is Test {
         uint256 dealerFunds = busdc.balanceOf(address(blackJack));
         assertEq(playerFunds, 4500e18);
         assertEq(dealerFunds, 8500e18);
+        vm.stopPrank();
+    }
+
+    function testFinishBetDealerAndPlayerGetsSoftHands() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(6);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        (,,, bool isDealerHandSoft,, bool isPlayerHandSoft,,,,,) = blackJack.getHandInfo(handId);
+
+        console.log("Is dealer hand soft: ", isDealerHandSoft);
+        console.log("Is player hand soft: ", isPlayerHandSoft);
+
+        string memory result = blackJack.finishBet(handId);
+
+        assertEq(isDealerHandSoft, true);
+        assertEq(isPlayerHandSoft, true);
+
         vm.stopPrank();
     }
 
