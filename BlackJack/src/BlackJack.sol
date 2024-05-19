@@ -8,14 +8,14 @@ import "./BlackJackVRF.sol";
 import "./BUSDC.sol";
 import {Test, console} from "forge-std/Test.sol";
 
-pragma solidity ^0.8.19;
+pragma solidity 0.8.25;
 
 contract BlackJack is Ownable, Test {
     error NotPossible();
     error NotOwnerOfHand();
     error NotEnoughFunds();
     error SameHand();
-    error BlackJack();
+    error BlackJackHand();
 
     struct Player {
         address wallet;
@@ -122,7 +122,7 @@ contract BlackJack is Ownable, Test {
 
         uint256[] memory playerPoints = getHandFromRandomNumber(randomNumbers[0]);
         uint256[] memory dealerPoints = getHandFromRandomNumber(randomNumbers[1]);
-     
+
         (int256 playerHand, bool isPlayerHandSoft) = calculateHand(playerPoints);
         (int256 dealerHand, bool isDealerHandSoft) = calculateHand(dealerPoints);
 
@@ -169,6 +169,11 @@ contract BlackJack is Ownable, Test {
 
     function hit(uint256 requestId) public returns (uint256) {
         Hand storage hand = hands[requestId];
+
+        if (hand.player != msg.sender) {
+            revert NotOwnerOfHand();
+        }
+
         require(hand.isHandDealt, "Hand not dealt yet!");
         require(!hand.isHandPlayedOut, "Hand is played out!");
         if (hand.timeHandIsDealt + DURATION_OF_HAND < block.timestamp) {
@@ -176,8 +181,8 @@ contract BlackJack is Ownable, Test {
             return requestId;
             //Finish Hand
         }
-        if (hand.playerHand == 100 && hand.dealerHand == 100) {
-            revert BlackJack();
+        if (hand.playerHand == 100 || hand.dealerHand == 100) {
+            revert BlackJackHand();
         }
         if (hand.playerHand > 21 || hand.dealerHand > 21) {
             revert NotPossible();
@@ -197,20 +202,15 @@ contract BlackJack is Ownable, Test {
 
     function getHandFromHit(uint256 handId, uint256 newRequestId) public returns (uint256, uint256) {
         Hand memory hand = hands[handId];
-        if (hand.player != msg.sender) {
-            revert NotOwnerOfHand();
-        }
-        if (hand.isHandPlayedOut) {
+        Hand memory newHand = hands[newRequestId];
+
+        if (newHand.isHandPlayedOut) {
             revert NotPossible();
-        }
-        if (hand.playerHand == 100 && hand.dealerHand == 100) {
-            revert BlackJack();
         }
         if (hand.playerHand > 21 || hand.dealerHand > 21) {
             revert NotPossible();
         }
 
-        require(!hand.isHandPlayedOut, "Hand played already");
         require(hand.isHandDealt, "Hand not dealt");
         (bool isFulfilled, uint256[] memory randomNumbers) = BjVRF.getRequestStatus(newRequestId);
         require(isFulfilled, "Request not fulfilled yet!");
@@ -245,7 +245,7 @@ contract BlackJack is Ownable, Test {
             } else {
                 return (hand + 11, true);
             }
-        } else if (newCard - cardCheck > 0) {
+        } else if (int256(newCard) - int256(cardCheck) > 0) {
             return (hand + newCard, false);
         } else {
             return (hand + 10, false);
@@ -271,8 +271,8 @@ contract BlackJack is Ownable, Test {
             isDealerHandSoft,
             playerPoints,
             isPlayerHandSoft,
-            oldHand.isHandPlayedOut,
-            oldHand.isHandDealt,
+            false,
+            true,
             block.timestamp,
             oldHand.playerBet,
             oldHand.isDouble
@@ -304,9 +304,9 @@ contract BlackJack is Ownable, Test {
             return "Dealer has BlackJack!";
         }
 
-        //ISSOFT???????????
+        //!ISSOFT???????????
         if (hand.dealerHand < 16) {
-            hand.isHandPlayedOut = false; //! THIS IS NOT POSSIBLE
+            hand.isHandPlayedOut = false;
             uint256 newRequestId = hit(handId);
             hand.timeHandIsDealt = block.timestamp;
             return Strings.toString(newRequestId); //Returns the newRequestId
@@ -335,9 +335,9 @@ contract BlackJack is Ownable, Test {
     /// @notice This function is called to see the ramining player funds.
     /// @dev Returns a uint of the remaining player funds.
 
-    function remainingPlayerFunds() external view returns (uint256) {
-        Player memory player = playerToInfo[msg.sender];
-        return Btoken.balanceOf(msg.sender); // In BUSDC
+    function remainingPlayerFunds(address playerAddress) external view returns (uint256) {
+        Player memory player = playerToInfo[playerAddress];
+        return Btoken.balanceOf(player.wallet); // In BUSDC
     }
 
     /// @notice This function is called when a player want to withdraw funds.
@@ -345,7 +345,6 @@ contract BlackJack is Ownable, Test {
     /// @param amount The amount the player wants to withdraw in BUSDC.
 
     function withdrawFunds(uint256 amount) external {
-        Player storage player = playerToInfo[msg.sender];
         require(Btoken.balanceOf(msg.sender) >= amount, "Not enough funds");
         int256 ethPrice = BjDataFeed.getChainlinkDataFeedLatestAnswer();
         uint256 amountToSendToPlayerBack = amount * 10 ** 8 / uint256(ethPrice);
@@ -364,7 +363,7 @@ contract BlackJack is Ownable, Test {
     /// @dev The function will calculate the hands for player and dealer and perform the neccesarry checks for the hands.
     /// @param handPoints Array of handpoints that contain the card and the check for the card.
 
-    function calculateHand(uint256[] memory handPoints) private view returns (int256, bool) {
+    function calculateHand(uint256[] memory handPoints) private pure returns (int256, bool) {
         //!CHange back to pure
         int256 firstCard = int256(handPoints[0]);
         int256 secondCard = int256(handPoints[1]);
@@ -399,7 +398,7 @@ contract BlackJack is Ownable, Test {
             }
         }
 
-        //Check if we have Blackjack 
+        //Check if we have Blackjack
         if ((firstCard == 10 && secondCard == 1) || (firstCard == 1 && secondCard == 10)) {
             hand = 100;
             return (hand, false); //BlackJack!
@@ -458,6 +457,7 @@ contract BlackJack is Ownable, Test {
 
     function getHandInfo(uint256 handId)
         public
+        view
         returns (address, uint256, uint256, bool, uint256, bool, bool, bool, uint256, uint256, bool)
     {
         Hand memory hand = hands[handId];
@@ -476,7 +476,7 @@ contract BlackJack is Ownable, Test {
         );
     }
 
-    function isHandPlayedOut(uint256 handId) public returns (bool) {
+    function isHandPlayedOut(uint256 handId) public view returns (bool) {
         return hands[handId].isHandPlayedOut;
     }
 
