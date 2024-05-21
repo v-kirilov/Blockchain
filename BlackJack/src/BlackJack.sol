@@ -6,12 +6,10 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "./BlackJackDataFeed.sol";
 import "./BlackJackVRF.sol";
 import "./BUSDC.sol";
-import {IHand} from "./IHand.sol";
-import {Test, console} from "forge-std/Test.sol";
 
 pragma solidity 0.8.25;
 
-contract BlackJack is IHand, Ownable, Test {
+contract BlackJack is Ownable {
     error NotPossible();
     error NotOwnerOfHand();
     error NotEnoughFunds();
@@ -23,21 +21,21 @@ contract BlackJack is IHand, Ownable, Test {
         bool isPlayingHand;
     }
 
-    // struct Hand {
-    //     address player;
-    //     uint256 id;
-    //     uint256 dealerHand;
-    //     bool isDealerHandSoft;
-    //     uint256 playerHand;
-    //     bool isPlayerHandSoft;
-    //     bool isHandPlayedOut;
-    //     bool isHandDealt;
-    //     uint256 timeHandIsDealt;
-    //     uint256 playerBet;
-    //     bool isDouble;
-    //     bool playerHit;
-    //     bool dealerHit;
-    // }
+    struct Hand {
+        address player;
+        uint256 id;
+        uint256 dealerHand;
+        bool isDealerHandSoft;
+        uint256 playerHand;
+        bool isPlayerHandSoft;
+        bool isHandPlayedOut;
+        bool isHandDealt;
+        uint256 timeHandIsDealt;
+        uint256 playerBet;
+        bool isDouble;
+        bool playerHit;
+        bool dealerHit;
+    }
 
     BUSDC private Btoken;
     BlackJackDataFeed private BjDataFeed;
@@ -331,7 +329,6 @@ contract BlackJack is IHand, Ownable, Test {
 
         //!ISSOFT???????????
         if (hand.dealerHand < 16) {
-            console.log("Dealer hits");
             hand.isHandPlayedOut = false;
             uint256 newRequestId = dealerHit(handId);
 
