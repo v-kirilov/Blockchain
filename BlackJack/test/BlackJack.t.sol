@@ -7,7 +7,6 @@ import {BlackJackVRFMock} from "../src/Mocks/BlackJackVRFMock.sol";
 import {BUSDC} from "../src/BUSDC.sol";
 
 contract BlackJackTest is Test {
-
     BlackJack public blackJack;
     BlackJackVRFMock public bjVRFMock;
     BUSDC public busdc;
@@ -52,6 +51,18 @@ contract BlackJackTest is Test {
         loser = address(0x2);
         pusher = address(0x3);
         vm.deal(winner, 1 ether);
+    }
+
+    function stringToUint(string memory s) public pure returns (uint256) {
+        bytes memory b = bytes(s);
+        uint256 result = 0;
+        for (uint256 i = 0; i < b.length; i++) {
+            uint256 c = uint256(uint8(b[i]));
+            if (c >= 48 && c <= 57) {
+                result = result * 10 + (c - 48);
+            }
+        }
+        return result;
     }
 
     function registerPlayer() public {
@@ -356,7 +367,7 @@ contract BlackJackTest is Test {
         console.log("Player hand is: ", uint256(playerHand));
         console.log("Dealer hand is: ", uint256(dealerHand));
 
-        (,,, bool isDealerHandSoft,, bool isPlayerHandSoft,,,,,) = blackJack.getHandInfo(handId);
+        (bool isDealerHandSoft, bool isPlayerHandSoft) = blackJack.isHandSoft(handId);
 
         console.log("Is dealer hand soft: ", isDealerHandSoft);
         console.log("Is player hand soft: ", isPlayerHandSoft);
@@ -365,6 +376,52 @@ contract BlackJackTest is Test {
 
         assertEq(isDealerHandSoft, true);
         assertEq(isPlayerHandSoft, true);
+
+        vm.stopPrank();
+    }
+
+    function testFinishBetDealerHitsAgain() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(8);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        string memory result = blackJack.finishBet(handId);
+        console.log(result);
+
+        (bool dealerHit, bool playerHit) = blackJack.isHandHit(handId);
+        console.log("Dealer hit: ", dealerHit);
+        console.log("Player hit: ", playerHit);
+
+        bool isOriginalHandPlayedOut = blackJack.isHandPlayedOut(handId);
+        assertEq(isOriginalHandPlayedOut, true);
+
+        uint256 newHandId = stringToUint(result);
+        newHandId += 1;
+        bjVRFMock.setReturnNumbers(7);
+        // (int256 playerHand2, int256 dealerHand2) = blackJack.getHand(newHandId); //! THIS IS PROBLEMATIC
+        (uint256 playerHand2, uint256 dealerHand2) = blackJack.getHandFromHit(handId, newHandId);
+        console.log("Player hand is: ", uint256(playerHand2));
+        console.log("Dealer hand is: ", uint256(dealerHand2));
+        //Dealer hits again, will get a new handID
+
+        string memory resultAfterHit = blackJack.finishBet(newHandId);
+        console.log(resultAfterHit);
+
+        uint256 playerFunds = busdc.balanceOf(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 2000e18);
+        assertEq(dealerFunds, 11000e18);
 
         vm.stopPrank();
     }
@@ -387,12 +444,12 @@ contract BlackJackTest is Test {
 
         vm.expectRevert(BlackJack.BlackJackHand.selector);
 
-        uint256 newHandId = blackJack.hit(handId);
+        uint256 newHandId = blackJack.playerHit(handId);
 
         vm.stopPrank();
     }
 
-        function testHitRevertsWhenNotOwner() public {
+    function testHitRevertsWhenNotOwner() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -407,15 +464,14 @@ contract BlackJackTest is Test {
 
         bjVRFMock.setReturnNumbers(7);
         vm.stopPrank();
-        
-         vm.startPrank(loser);
+
+        vm.startPrank(loser);
         vm.expectRevert(BlackJack.NotOwnerOfHand.selector);
-        uint256 newHandId = blackJack.hit(handId);
+        uint256 newHandId = blackJack.playerHit(handId);
         vm.stopPrank();
-
     }
 
-        function testHitSecondTimeWhenPlayerHasMoreThan21() public {
+    function testHitSecondTimeWhenPlayerHasMoreThan21() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -427,19 +483,22 @@ contract BlackJackTest is Test {
         bjVRFMock.setReturnNumbers(1);
 
         (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+        console.log(uint256(playerHand));
+        console.log(uint256(dealerHand));
 
         bjVRFMock.setReturnNumbers(7);
-        uint256 newHandId = blackJack.hit(handId);
+        uint256 newHandId = blackJack.playerHit(handId);
 
-        (uint256 newPlayerHand, uint256 newDealerHand) =blackJack.getHandFromHit(handId, newHandId);
-
+        (uint256 newPlayerHand, uint256 newDealerHand) = blackJack.getHandFromHit(handId, newHandId);
+        console.log(uint256(newPlayerHand));
+        console.log(uint256(newDealerHand));
         vm.expectRevert(BlackJack.NotPossible.selector);
-        uint256 newHandWillRevert = blackJack.hit(newHandId);
+        uint256 newHandWillRevert = blackJack.playerHit(newHandId);
 
         vm.stopPrank();
     }
 
-            function testgetHandFromHitWillRevertWhenHandPlayedout() public {
+    function testgetHandFromHitWillRevertWhenHandPlayedout() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -455,42 +514,42 @@ contract BlackJackTest is Test {
         string memory result = blackJack.finishBet(handId);
 
         vm.expectRevert(BlackJack.NotPossible.selector);
-        (uint256 newPlayerHand, uint256 newDealerHand) =blackJack.getHandFromHit(handId, handId);
+        (uint256 newPlayerHand, uint256 newDealerHand) = blackJack.getHandFromHit(handId, handId);
 
         vm.stopPrank();
     }
 
-    // function testHitSuccesfullAndGetMonkey() public {
-    //     uint256 bet = 1000e18;
-    //     registerPlayer();
-    //     mintToBJContract();
+    function testHitSuccesfullAndGetMonkey() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
 
-    //     vm.startPrank(winner);
-    //     busdc.approve(address(blackJack), bet);
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
 
-    //     uint256 handId = blackJack.enterBet(bet);
-    //     bjVRFMock.setReturnNumbers(1);
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(1);
 
-    //     (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
 
-    //     bjVRFMock.setReturnNumbers(7);
-    //     uint256 newHandId = blackJack.hit(handId);
+        bjVRFMock.setReturnNumbers(7);
+        uint256 newHandId = blackJack.playerHit(handId);
 
-    //     (uint256 newPlayerHand, uint256 newDealerHand) =blackJack.getHandFromHit(handId, newHandId);
+        (uint256 newPlayerHand, uint256 newDealerHand) =blackJack.getHandFromHit(handId, newHandId);
 
-    //     console.log("Player hand is: ", uint256(newPlayerHand));
-    //     console.log("Dealer hand is: ", uint256(newDealerHand));
+        console.log("Player hand is: ", uint256(newPlayerHand));
+        console.log("Dealer hand is: ", uint256(newDealerHand));
 
-    //     string memory result = blackJack.finishBet(newHandId);
+        string memory result = blackJack.finishBet(newHandId);
 
-    //     uint256 playerFunds = busdc.balanceOf(winner);
-    //     uint256 dealerFunds = busdc.balanceOf(address(blackJack));
-    //     assertEq(playerFunds, 2000e18);
-    //     assertEq(dealerFunds, 11000e18);
-    //     console.log(result);
+        uint256 playerFunds = busdc.balanceOf(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 2000e18);
+        assertEq(dealerFunds, 11000e18);
+        console.log(result);
 
-    //     vm.stopPrank();
-    // }
+        vm.stopPrank();
+    }
 
     function testDoubleRevertsWithPlayedoutHand() public {
         uint256 bet = 1000e18;
@@ -554,7 +613,7 @@ contract BlackJackTest is Test {
         uint256 newHandId = blackJack.double(handId);
         console.log("New hand ID: ", newHandId);
 
-        (,,,,,,,,,, bool isDoubled) = blackJack.getHandInfo(handId);
+        bool isDoubled = blackJack.isHandDoubled(handId);
         assertEq(isDoubled, true);
 
         vm.stopPrank();
@@ -585,7 +644,9 @@ contract BlackJackTest is Test {
         uint256 newHandId = blackJack.double(handId);
         console.log("New hand ID: ", newHandId);
 
-        (,,,,,, bool isHandPlayedOut,,,, bool isDoubled) = blackJack.getHandInfo(handId);
+        bool isHandPlayedOut = blackJack.isHandPlayedOut(handId);
+        bool isDoubled = blackJack.isHandDoubled(handId);
+
         assertEq(isDoubled, false);
         assertEq(handId, newHandId);
         assertEq(isHandPlayedOut, true);
