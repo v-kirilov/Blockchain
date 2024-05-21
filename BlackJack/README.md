@@ -11,13 +11,13 @@ and the dealer. At this point a `hand` struct will be created keeping all of the
 It is important to keep in mind that the user will have 10 blocks of time to finish his bet.
 If user is satisfied with his hand, he can call the `finishBet` function that will transfer the state
 into one that will finish the game. At that point if the dealer has less than 16 the contract will call the 
-`dealerHit` function to get another random number for a card. The player must call the `getHandFromHit` function
-so that the new state is updated , and after that he can call the `finishBet` function again.
+`dealerHit` function to get another random number for a card. A new hand will be created and time will be updated and restarted.
+ The player must call the `getHandFromHit` function so that the new state is updated , and after that he can call the `finishBet` function again.
 If the player is not satisfied with his hand, he can call the `playerHit` function and follow the same logic.
 
 Upon finishing the bet the contract will calculate the corresponding outcome and transfer the winnings in BUSDC.
 
-At any point the user can decide to withdraw his ETH from the contrcat if he is not participating in any hand.
+At any point the user can decide to withdraw his ETH from the contrcat, if he is not participating in any hand.
 
 
 
