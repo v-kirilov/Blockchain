@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {BlackJack} from "../src/BlackJack.sol";
 import {BlackJackVRFMock} from "../src/Mocks/BlackJackVRFMock.sol";
 import {BUSDC} from "../src/BUSDC.sol";
+import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
 contract BlackJackTest is Test {
     BlackJack public blackJack;
@@ -26,20 +27,6 @@ contract BlackJackTest is Test {
         uint256 hand;
         uint256 currentHandId;
         bool isPlayingHand;
-    }
-
-    struct Hand {
-        address player;
-        uint256 id;
-        uint256 dealerHand;
-        bool isDealerHandSoft;
-        uint256 playerHand;
-        bool isPlayerHandSoft;
-        bool isHandPlayedOut;
-        bool isHandDealt;
-        uint256 timeHandIsDealt;
-        uint256 playerBet;
-        bool isDouble;
     }
 
     function setUp() public {
@@ -380,6 +367,39 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
+        function testFinishBetPlayerGetsTwoAces() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(9);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        (bool isDealerHandSoft, bool isPlayerHandSoft) = blackJack.isHandSoft(handId);
+
+        console.log("Is dealer hand soft: ", isDealerHandSoft);
+        console.log("Is player hand soft: ", isPlayerHandSoft);
+
+        string memory result = blackJack.finishBet(handId);
+
+        assertEq(isPlayerHandSoft, true);
+        assertEq(isDealerHandSoft, false);
+
+        BlackJack.Hand memory hand = blackJack.getHandInfo(handId);
+        assertEq(hand.playerHand, 12);
+        assertEq(hand.isPlayerHandSoft, true);
+
+        vm.stopPrank();
+    }
+
     function testFinishBetDealerHitsAgain() public {
         uint256 bet = 1000e18;
         registerPlayer();
@@ -551,6 +571,40 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
+     function testHitSuccesfullAndGetAce() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(1);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Delaer hand is: ", uint256(dealerHand));
+
+        bjVRFMock.setReturnNumbers(10);
+        uint256 newHandId = blackJack.playerHit(handId);
+
+        (uint256 newPlayerHand, uint256 newDealerHand) =blackJack.getHandFromHit(handId, newHandId);
+
+        console.log("Player hand is: ", uint256(newPlayerHand));
+        console.log("Dealer hand is: ", uint256(newDealerHand));
+
+        string memory result = blackJack.finishBet(newHandId);
+
+        uint256 playerFunds = busdc.balanceOf(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 4000e18);
+        assertEq(dealerFunds, 9000e18);
+        console.log(result);
+
+        vm.stopPrank();
+    }
+
     function testDoubleRevertsWithPlayedoutHand() public {
         uint256 bet = 1000e18;
         registerPlayer();
@@ -651,6 +705,26 @@ contract BlackJackTest is Test {
         assertEq(handId, newHandId);
         assertEq(isHandPlayedOut, true);
 
+        vm.stopPrank();
+    }
+
+    function testNotOwner() public {
+        vm.startPrank(winner);
+        vm.expectRevert();
+        blackJack.renounceOwnership();
+        vm.stopPrank();
+    }
+
+        function testRenounceOwner() public {
+        vm.expectRevert(BlackJack.NotPossible.selector);
+        blackJack.renounceOwnership();
+    }
+
+    function testSendETHDirectToContract() public {
+        vm.startPrank(winner);
+        vm.expectRevert(BlackJack.NotPossible.selector);
+        (bool ok,) = address(winner).call{value: 1 ether}("");
+        console.log(ok);
         vm.stopPrank();
     }
 }
