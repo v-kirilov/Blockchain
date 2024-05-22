@@ -261,7 +261,7 @@ contract BlackJack is Ownable {
             return (hand + 10, false);
         }
         if (newCard == 1) {
-            if (newCard + 11 > 21) {
+            if (newCard + 10 + hand > 21) {
                 return (hand + 1, false);
             } else {
                 return (hand + 11, true);
@@ -355,7 +355,7 @@ contract BlackJack is Ownable {
     }
 
     fallback() external {
-        registerPlayer();
+       revert NotPossible();
     }
 
     /// @notice This function is called to see the ramining player funds.
@@ -390,7 +390,6 @@ contract BlackJack is Ownable {
     /// @param handPoints Array of handpoints that contain the card and the check for the card.
 
     function calculateHand(uint256[] memory handPoints) private pure returns (int256, bool) {
-        //!CHange back to pure
         int256 firstCard = int256(handPoints[0]);
         int256 secondCard = int256(handPoints[1]);
         int256 firstCheck = int256(handPoints[2]);
@@ -482,7 +481,7 @@ contract BlackJack is Ownable {
     }
 
     function getHandInfo(uint256 handId) public view returns (Hand memory hand) {
-        return hand = hands[handId];
+        return hands[handId];
     }
 
     function isHandSoft(uint256 handId) public view returns (bool, bool) {
@@ -502,6 +501,4 @@ contract BlackJack is Ownable {
     function isHandPlayedOut(uint256 handId) public view returns (bool) {
         return hands[handId].isHandPlayedOut;
     }
-
-    //29945765205364088472206773663980124860540389433803418837288208938022581593899
 }
