@@ -255,7 +255,7 @@ contract BlackJack is Ownable {
 
     function calculateHit(uint256 hand, uint256 newCard, uint256 cardCheck)
         private pure
-        returns (uint256, bool isSoftHand)
+        returns (uint256, bool)
     {
         if (newCard == 0) {
             return (hand + 10, false);
@@ -480,25 +480,29 @@ contract BlackJack is Ownable {
         revert NotPossible();
     }
 
-    function getHandInfo(uint256 handId) public view returns (Hand memory hand) {
+    function getHandInfo(uint256 handId) external view returns (Hand memory hand) {
         return hands[handId];
     }
 
-    function isHandSoft(uint256 handId) public view returns (bool, bool) {
+    function isHandSoft(uint256 handId) external view returns (bool, bool) {
         Hand memory hand = hands[handId];
         return (hand.isDealerHandSoft, hand.isPlayerHandSoft);
     }
 
-    function isHandHit(uint256 handId) public view returns (bool, bool) {
+    function isHandHit(uint256 handId) external view returns (bool, bool) {
         Hand memory hand = hands[handId];
         return (hand.dealerHit, hand.playerHit);
     }
 
-    function isHandDoubled(uint256 handId) public view returns (bool) {
+    function isHandDoubled(uint256 handId) external view returns (bool) {
         return hands[handId].isDouble;
     }
 
-    function isHandPlayedOut(uint256 handId) public view returns (bool) {
+    function isHandPlayedOut(uint256 handId) external view returns (bool) {
         return hands[handId].isHandPlayedOut;
+    }
+
+    function getDealerFunds() external view returns (uint256) {
+        return Btoken.balanceOf(address(this));
     }
 }
