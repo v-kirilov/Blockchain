@@ -698,6 +698,40 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
+     function testPlayerGetsFirstCardAceAndHitsGetsMonkeyAndBusts() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(15);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Delaer hand is: ", uint256(dealerHand));
+
+        bjVRFMock.setReturnNumbers(7);
+        uint256 newHandId = blackJack.playerHit(handId);
+
+        (uint256 newPlayerHand, uint256 newDealerHand) = blackJack.getHandFromHit(handId, newHandId);
+
+        console.log("Player hand is: ", uint256(newPlayerHand));
+        console.log("Dealer hand is: ", uint256(newDealerHand));
+
+        string memory result = blackJack.finishBet(newHandId);
+
+        uint256 playerFunds = blackJack.remainingPlayerFunds(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 2000e18);
+        assertEq(dealerFunds, 11000e18);
+        console.log(result);
+
+        vm.stopPrank();
+    }
+
     function testDoubleRevertsWithPlayedoutHand() public {
         uint256 bet = 1000e18;
         registerPlayer();
