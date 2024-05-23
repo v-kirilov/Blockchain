@@ -17,8 +17,10 @@ If the player is not satisfied with his hand, he can call the `playerHit` functi
 
 Upon finishing the bet the contract will calculate the corresponding outcome and transfer the winnings in BUSDC.
 
-At any point the user can decide to withdraw his ETH from the contrcat, if he is not participating in any hand.
+At any point the user can decide to withdraw his ETH from the contract, if he is not participating in any hand.
 
 
 
 ![alt text](https://images.prismic.io/desplaines-rushstreetgaming/1c8e0aa3-6b2d-4f01-a49e-15b556dc0882_03253_March-Blackjack-Blowout-Email_Image_1200x650_v1_210223.jpg?auto=compress,format)
+
+At the moment the codebase has 93% unit test coverage.
