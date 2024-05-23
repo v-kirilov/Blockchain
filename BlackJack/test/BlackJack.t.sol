@@ -367,7 +367,39 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-        function testFinishBetPlayerGetsTwoAces() public {
+    function testFinishBetDealerBusts() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(14);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        string memory result = blackJack.finishBet(handId);
+
+        uint256 newHandId = stringToUint(result);
+
+        (uint256 newPlayerHand, uint256 newDealerHand) = blackJack.getHandFromHit(handId, newHandId);
+
+        BlackJack.Hand memory newHand = blackJack.getHandInfo(newHandId);
+
+        string memory resultNewHand = blackJack.finishBet(newHandId);
+
+        uint256 playerFunds = busdc.balanceOf(winner);
+        uint256 dealerFunds = blackJack.getDealerFunds();
+        assertEq(playerFunds, 4000e18);
+        assertEq(dealerFunds, 9000e18);
+        assertEq(resultNewHand, "Dealer busts");
+
+        vm.stopPrank();
+    }
+
+    function testFinishBetPlayerGetsTwoAces() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -396,6 +428,35 @@ contract BlackJackTest is Test {
         BlackJack.Hand memory hand = blackJack.getHandInfo(handId);
         assertEq(hand.playerHand, 12);
         assertEq(hand.isPlayerHandSoft, true);
+
+        vm.stopPrank();
+    }
+
+    function testGetHandHasTwoMonkeysAndDealerHasTwoAces() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(11);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+
+        (bool isDealerHandSoft, bool isPlayerHandSoft) = blackJack.isHandSoft(handId);
+
+        console.log("Is dealer hand soft: ", isDealerHandSoft);
+        console.log("Is player hand soft: ", isPlayerHandSoft);
+
+        assertEq(playerHand, 20);
+        assertEq(dealerHand, 12);
+        assertEq(isPlayerHandSoft, false);
+        assertEq(isDealerHandSoft, true);
 
         vm.stopPrank();
     }
@@ -555,7 +616,7 @@ contract BlackJackTest is Test {
         bjVRFMock.setReturnNumbers(7);
         uint256 newHandId = blackJack.playerHit(handId);
 
-        (uint256 newPlayerHand, uint256 newDealerHand) =blackJack.getHandFromHit(handId, newHandId);
+        (uint256 newPlayerHand, uint256 newDealerHand) = blackJack.getHandFromHit(handId, newHandId);
 
         console.log("Player hand is: ", uint256(newPlayerHand));
         console.log("Dealer hand is: ", uint256(newDealerHand));
@@ -571,7 +632,39 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-     function testHitSuccesfullAndGetAce() public {
+    function testHitGetsAceAndHandIsSoft() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(12);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Dealer hand is: ", uint256(dealerHand));
+        bjVRFMock.setReturnNumbers(13);
+        uint256 newHandId = blackJack.playerHit(handId);
+
+        (uint256 newPlayerHand, uint256 newDealerHand) = blackJack.getHandFromHit(handId, newHandId);
+
+        console.log("Player hand is: ", uint256(newPlayerHand));
+        console.log("Dealer hand is: ", uint256(newDealerHand));
+        (bool isDealerHandSoft, bool isPlayerHandSoft) = blackJack.isHandSoft(newHandId);
+        console.log("Player hand is soft: ", isPlayerHandSoft);
+        console.log("Dealer hand is soft: ", isDealerHandSoft);
+
+        assertEq(newPlayerHand, 20);
+        assertEq(isPlayerHandSoft, true);
+        assertEq(isDealerHandSoft, true);
+        vm.stopPrank();
+    }
+
+    function testHitSuccesfullAndGetAce() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -589,7 +682,7 @@ contract BlackJackTest is Test {
         bjVRFMock.setReturnNumbers(10);
         uint256 newHandId = blackJack.playerHit(handId);
 
-        (uint256 newPlayerHand, uint256 newDealerHand) =blackJack.getHandFromHit(handId, newHandId);
+        (uint256 newPlayerHand, uint256 newDealerHand) = blackJack.getHandFromHit(handId, newHandId);
 
         console.log("Player hand is: ", uint256(newPlayerHand));
         console.log("Dealer hand is: ", uint256(newDealerHand));
@@ -715,7 +808,7 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-        function testRenounceOwner() public {
+    function testRenounceOwner() public {
         vm.expectRevert(BlackJack.NotPossible.selector);
         blackJack.renounceOwnership();
     }
