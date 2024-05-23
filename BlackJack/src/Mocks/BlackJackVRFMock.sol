@@ -106,7 +106,7 @@ contract BlackJackVRFMock is Test {
         }
 
         if (x == 10) {
-            //Hit and get a monkey
+            //Hit and get an ace
             randomWords = new uint256[](1);
             randomWords[0] = 844588237001536610969743867305631113212400060182078454427040534666432271;
         }
@@ -135,6 +135,13 @@ contract BlackJackVRFMock is Test {
             //Dealer will hit and bust after that
             randomWords = new uint256[](2);
             randomWords[0] = 844588237001536610969743867305631113212400060182078454427040534666431109;
+            randomWords[1] = 844588237001536610969743867305631113212400060182078454427040534666432278;
+        }
+
+        if (x == 15) {
+            //Player first card is ace
+            randomWords = new uint256[](2);
+            randomWords[0] = 844588237001536610969743867305631113212400060182078454427040534666431121;
             randomWords[1] = 844588237001536610969743867305631113212400060182078454427040534666432278;
         }
     }
