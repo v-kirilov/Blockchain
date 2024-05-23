@@ -328,7 +328,7 @@ contract BlackJack is Ownable {
         }
 
         //!ISSOFT???????????
-        if (hand.dealerHand < 16) {
+        if (hand.dealerHand < 16 && hand.playerHand < 22) {
             hand.isHandPlayedOut = false;
             player.isPlayingHand = true;
             uint256 newRequestId = dealerHit(handId);
