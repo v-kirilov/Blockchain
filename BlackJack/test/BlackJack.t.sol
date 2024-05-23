@@ -698,7 +698,7 @@ contract BlackJackTest is Test {
         vm.stopPrank();
     }
 
-     function testPlayerGetsFirstCardAceAndHitsGetsMonkeyAndBusts() public {
+    function testPlayerGetsFirstCardAceAndHitsGetsMonkeyAndBusts() public {
         uint256 bet = 1000e18;
         registerPlayer();
         mintToBJContract();
@@ -728,6 +728,41 @@ contract BlackJackTest is Test {
         assertEq(playerFunds, 2000e18);
         assertEq(dealerFunds, 11000e18);
         console.log(result);
+
+        vm.stopPrank();
+    }
+
+    function testPlayerTriesToHitButTimeHasPassed() public {
+        uint256 bet = 1000e18;
+        registerPlayer();
+        mintToBJContract();
+
+        vm.startPrank(winner);
+        busdc.approve(address(blackJack), bet);
+
+        uint256 handId = blackJack.enterBet(bet);
+        bjVRFMock.setReturnNumbers(15);
+
+        (int256 playerHand, int256 dealerHand) = blackJack.getHand(handId);
+        console.log("Player hand is: ", uint256(playerHand));
+        console.log("Delaer hand is: ", uint256(dealerHand));
+
+        vm.warp(DURATION_OF_HAND + 10);
+        vm.roll(10);
+
+        bjVRFMock.setReturnNumbers(7);
+        uint256 newHandId = blackJack.playerHit(handId);
+        console.log("New hand ID: ", newHandId);
+
+        assertEq(handId, newHandId);
+
+        uint256 playerFunds = blackJack.remainingPlayerFunds(winner);
+        uint256 dealerFunds = busdc.balanceOf(address(blackJack));
+        assertEq(playerFunds, 2000e18);
+        assertEq(dealerFunds, 11000e18);
+
+        BlackJack.Hand memory hand = blackJack.getHandInfo(handId);
+        assertEq(hand.isHandPlayedOut, true);
 
         vm.stopPrank();
     }
