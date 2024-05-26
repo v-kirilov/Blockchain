@@ -6,7 +6,7 @@ pragma solidity 0.8.25;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract DeStake  is Ownable{
+contract DeStake is Ownable {
     error NotPossible();
     error PresaleOver();
     error PresaleNotStarted();
@@ -22,8 +22,8 @@ contract DeStake  is Ownable{
         uint256 tokensBought;
         uint256 ethSpent;
         uint256 tokensClaimed;
-        //bool isBlackListed;
     }
+    //bool isBlackListed;
 
     // Token must be transfered to the protocol before the presale starts
     // The token being presaled
@@ -50,7 +50,8 @@ contract DeStake  is Ownable{
     bool private isLiquidityPhaseActive;
 
     // Should be public to allow for the buyer to see the fees.
-    uint256 public protocolFee;
+    // In percentige
+    uint256 public protocolFee = 3;
 
     // Min and max token buy per buyer address (can be curcemvented by buyer using multiple addresses)
     uint256 public minTokenBuy;
@@ -84,7 +85,7 @@ contract DeStake  is Ownable{
         _;
     }
 
-        modifier presaleActive() {
+    modifier presaleActive() {
         if (hasEnded) {
             revert PresaleOver();
         }
@@ -95,6 +96,8 @@ contract DeStake  is Ownable{
     }
 
     //Events
+    event TokensPurchased(address indexed buyer, uint256 amount);
+    event TokensClaiemd(address indexed buyer, uint256 amount);
 
     constructor(uint256 _preSaleStartDate, uint256 _presaleDuration) Ownable(msg.sender) {
         preSaleStartDate = _preSaleStartDate;
@@ -102,8 +105,7 @@ contract DeStake  is Ownable{
         //! Extend presale duration in needed, function onlyonwer
     }
 
-    function buyTokens(uint256 amount)  external  payable  notBLackListed presaleActive
-    {
+    function buyTokens() external payable notBLackListed presaleActive {
         if (msg.value == 0) {
             revert NoETHProvided();
         }
@@ -113,22 +115,31 @@ contract DeStake  is Ownable{
         if (hasEnded) {
             revert PresaleOver();
         }
+
+        //Take into account the fees.
+        uint256 fees = msg.value * protocolFee / 100;
+        uint256 purchaseValue = msg.value - fees;
+        totalFeesAcquired += fees;
+
+        uint256 amount = purchaseValue / ethPricePerToken;
         if (amount < minTokenBuy || amount > maxTokenBuy) {
             revert MinMaxBuyNotReached();
         }
+
+        totalTokensSold += amount;
         if (totalTokensSold >= tokenHardCap) {
             revert HardCapReached();
         }
 
-        uint256 tokensToBuy = msg.value / ethPricePerToken;
-        totalTokensSold += tokensToBuy;
-        totalEthRaised += msg.value;
+        totalEthRaised += purchaseValue;
+        Buyer memory buyer = buyers[msg.sender];
+        if (buyer.buyerAddress == address(0)) {
+            buyer.buyerAddress = msg.sender;
+        }
+        buyer.tokensBought += amount;
+        buyer.ethSpent += msg.value;
 
-        buyers[msg.sender].tokensBought += tokensToBuy;
-        buyers[msg.sender].ethSpent += msg.value;
-
-        //emit TokensPurchased(address(this), msg.sender, tokensToBuy);
+        buyers[msg.sender] = buyer;
+        emit TokensPurchased(address(msg.sender), amount);
     }
-
-
 }
