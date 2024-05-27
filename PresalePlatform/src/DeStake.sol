@@ -5,8 +5,11 @@ pragma solidity 0.8.25;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract DeStake is Ownable {
+    using SafeERC20 for IERC20;
+    
     error NotPossible();
     error PresaleOver();
     error PresaleNotStarted();
@@ -27,7 +30,7 @@ contract DeStake is Ownable {
 
     // Token must be transfered to the protocol before the presale starts
     // The token being presaled
-    IERC20 public token;
+    IERC20 public immutable token;
 
     // Tokens that are for sale during presale
     uint256 public tokenHardCap;
@@ -99,9 +102,10 @@ contract DeStake is Ownable {
     event TokensPurchased(address indexed buyer, uint256 amount);
     event TokensClaiemd(address indexed buyer, uint256 amount);
 
-    constructor(uint256 _preSaleStartDate, uint256 _presaleDuration) Ownable(msg.sender) {
+    constructor(uint256 _preSaleStartDate, uint256 _presaleDuration, address _token) Ownable(msg.sender) {
         preSaleStartDate = _preSaleStartDate;
         presaleDuration = _presaleDuration;
+        token = IERC20(_token);
         //! Extend presale duration in needed, function onlyonwer
     }
 
@@ -140,6 +144,9 @@ contract DeStake is Ownable {
         buyer.ethSpent += msg.value;
 
         buyers[msg.sender] = buyer;
+
+        //! Transfer the tokens to the buyer - safetransfer?
+        token.safeTransfer(msg.sender, amount);
         emit TokensPurchased(address(msg.sender), amount);
     }
 }
