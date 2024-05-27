@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract DeStake is Ownable {
     using SafeERC20 for IERC20;
-    
+
     error NotPossible();
     error PresaleOver();
     error PresaleNotStarted();
@@ -148,5 +148,53 @@ contract DeStake is Ownable {
         //! Transfer the tokens to the buyer - safetransfer?
         token.safeTransfer(msg.sender, amount);
         emit TokensPurchased(address(msg.sender), amount);
+    }
+
+    function setVestingDuration(uint256 increaseVestingDuration) external onlyOwner {
+        require(increaseVestingDuration > 0, "Increase vesting duration must be greater than 0");
+
+        vestingDuration += increaseVestingDuration;
+    }
+
+    function updateEthPricePerToken(uint256 _ethPricePerToken) external onlyOwner {
+        require(_ethPricePerToken > 0, "Price per token must be greater than 0");
+        ethPricePerToken = _ethPricePerToken;
+    }
+
+    function increaseHardCap(uint256 _tokenHardCapIncrement) external onlyOwner presaleActive {
+        require(_tokenHardCapIncrement > tokenHardCap, "Token hard cap must be bigger than before");
+        tokenHardCap += _tokenHardCapIncrement;
+    }
+
+    function blackList(address user) external onlyOwner {
+        require(user != address(0), "Invalid address");
+        require(!blackListedUsers[user], "User is already blacklisted");
+        blackListedUsers[user] = true;
+    }
+
+    function whiteList(address user) external onlyOwner {
+        require(user != address(0), "Invalid address");
+        require(blackListedUsers[user], "User is not blacklisted");
+        blackListedUsers[user] = false;
+    }
+
+    function hasPresaleStarted() public view returns (bool) {
+        return hasStarted;
+    }
+
+    function hasPresaleEnded() public view returns (bool) {
+        return hasEnded;
+    }
+
+    function amountETHRaised() external view onlyOwner returns (uint256) {
+        return totalEthRaised;
+    }
+
+    function getTokenPrice() external view returns (uint256){
+        return ethPricePerToken;
+    }
+
+    function tokensSold() external view onlyOwner returns (uint256){
+        return totalTokensSold;
     }
 }
