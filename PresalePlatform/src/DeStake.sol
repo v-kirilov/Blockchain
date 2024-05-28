@@ -17,6 +17,7 @@ contract DeStake is Ownable {
     error HardCapReached();
     error UserBlackListed();
     error NoETHProvided();
+    error VestingNotStarted();
 
     // Info for the buyer, the amount of tokens bought and the amount of ETH spent.
     // This should be updated
@@ -38,9 +39,12 @@ contract DeStake is Ownable {
     // Presale start date and duration for the tokens
     uint256 public preSaleStartDate;
     uint256 public presaleDuration;
+    uint256 public presaleEndDate;
 
     // Vesting duration after the presale period is over
     uint256 public vestingDuration;
+
+    uint256 claimableTokensPercentige;
 
     // Price of the token in ETH, which can be change later on depenging on the presale status
     uint256 public ethPricePerToken;
@@ -92,8 +96,21 @@ contract DeStake is Ownable {
         if (hasEnded) {
             revert PresaleOver();
         }
+        if (block.timestamp > presaleEndDate) {
+            revert PresaleOver();
+        }
         if (!hasStarted) {
             revert PresaleNotStarted();
+        }
+        if (block.timestamp < preSaleStartDate) {
+            revert PresaleNotStarted();
+        }
+        _;
+    }
+
+    modifier vestingStarted() {
+        if (block.timestamp < presaleEndDate) {
+            revert VestingNotStarted();
         }
         _;
     }
@@ -102,11 +119,20 @@ contract DeStake is Ownable {
     event TokensPurchased(address indexed buyer, uint256 amount);
     event TokensClaiemd(address indexed buyer, uint256 amount);
 
-    constructor(uint256 _preSaleStartDate, uint256 _presaleDuration, address _token) Ownable(msg.sender) {
+    constructor(
+        uint256 _preSaleStartDate,
+        uint256 _presaleDuration,
+        address _token,
+        address _protocolFeeAddress,
+        uint256 _vestingDuration
+    ) Ownable(msg.sender) {
         preSaleStartDate = _preSaleStartDate;
         presaleDuration = _presaleDuration;
+        presaleEndDate = preSaleStartDate + presaleDuration;
+        protocolFeeAddress = _protocolFeeAddress;
+        vestingDuration = _vestingDuration;
         token = IERC20(_token);
-        //! Extend presale duration in needed, function onlyonwer
+        //! Extend presale duration if needed, function onlyonwer
     }
 
     function buyTokens() external payable notBLackListed presaleActive {
@@ -145,12 +171,39 @@ contract DeStake is Ownable {
 
         buyers[msg.sender] = buyer;
 
-        //! Transfer the tokens to the buyer - safetransfer?
         token.safeTransfer(msg.sender, amount);
+
         emit TokensPurchased(address(msg.sender), amount);
     }
 
-    function setVestingDuration(uint256 increaseVestingDuration) external onlyOwner {
+    function claimTokens() external vestingStarted {
+        Buyer memory buyer = buyers[msg.sender];
+        require(buyer.tokensBought > 0, "No tokens bought");
+        uint256 claimablePercentige = getClaimablePercentige();
+        uint256 claimableTokens = buyer.tokensBought * claimablePercentige / 100 - buyer.tokensClaimed;
+        require(claimableTokens > 0, "No tokens to claim");
+
+        buyer.tokensClaimed += claimableTokens;
+        buyers[msg.sender] = buyer;
+
+        token.safeTransfer(msg.sender, claimableTokens);
+
+        emit TokensClaiemd(address(msg.sender), claimableTokens);
+    }
+
+    function withdrawFees() external onlyOwner {
+        require(totalFeesAcquired > 0, "No fees to withdraw");
+        totalFeesAcquired = 0;
+        (bool success,) = payable(protocolFeeAddress).call{value: totalFeesAcquired}("");
+        require(success, "Failed to withdraw fees");
+    }
+
+    function increasePresaleDuration(uint256 increasedDuration) external onlyOwner presaleActive {
+        presaleDuration += increasedDuration;
+        presaleEndDate += increasedDuration;
+    }
+
+    function increaseVestingDuration(uint256 increaseVestingDuration) external onlyOwner {
         require(increaseVestingDuration > 0, "Increase vesting duration must be greater than 0");
 
         vestingDuration += increaseVestingDuration;
@@ -190,11 +243,28 @@ contract DeStake is Ownable {
         return totalEthRaised;
     }
 
-    function getTokenPrice() external view returns (uint256){
+    function getTokenPrice() external view returns (uint256) {
         return ethPricePerToken;
     }
 
-    function tokensSold() external view onlyOwner returns (uint256){
+    function tokensSold() external view onlyOwner returns (uint256) {
         return totalTokensSold;
+    }
+
+    function isVestingDurationOver() public view returns (bool) {
+        return block.timestamp > presaleEndDate + vestingDuration;
+    }
+
+    function getClaimablePercentige() public view returns (uint256) {
+        require(block.timestamp > presaleEndDate, "Presale is not over yet");
+        uint256 vestingEndDate = presaleEndDate + vestingDuration;
+        uint256 percentige;
+        if (block.timestamp > presaleEndDate + vestingDuration) {
+            percentige = 100;
+        } else {
+            uint256 vestingTimePassed = vestingEndDate - block.timestamp;
+            percentige = vestingTimePassed * 100 / vestingDuration;
+        }
+        return percentige;
     }
 }
