@@ -1,3 +1,14 @@
+// _______              ______  ________   ______   __    __  ________ 
+//  |       \            /      \|        \ /      \ |  \  /  \|        \
+//  | $$$$$$$\  ______  |  $$$$$$\\$$$$$$$$|  $$$$$$\| $$ /  $$| $$$$$$$$
+//  | $$  | $$ /      \ | $$___\$$  | $$   | $$__| $$| $$/  $$ | $$__    
+//  | $$  | $$| $$    $$ _\$$$$$$\  | $$   | $$$$$$$$| $$$$$\  | $$$$$   
+//  | $$__/ $$| $$$$$$$$|  \__| $$  | $$   | $$  | $$| $$ \$$\ | $$_____ 
+//  | $$    $$ \$$     \ \$$    $$  | $$   | $$  | $$| $$  \$$\| $$     \
+//  | $$  | $$|  $$$$$$\ \$$    \   | $$   | $$    $$| $$  $$  | $$  \   
+//   \$$$$$$$   \$$$$$$$  \$$$$$$    \$$    \$$   \$$ \$$   \$$ \$$$$$$$$
+                                                                                                                                                       
+
 // The contract is made with assumptions that for every presale there will be a separate contract deployed.
 
 // SPDX-License-Identifier: UNLICENSED
@@ -13,21 +24,19 @@ contract DeStake is Ownable {
     error NotPossible();
     error PresaleOver();
     error PresaleNotStarted();
-    error MinMaxBuyNotReached();
+    error OutOfMinMaxAmount();
     error HardCapReached();
     error UserBlackListed();
     error NoETHProvided();
     error VestingNotStarted();
 
     // Info for the buyer, the amount of tokens bought and the amount of ETH spent.
-    // This should be updated
     struct Buyer {
         address buyerAddress;
         uint256 tokensBought;
         uint256 ethSpent;
         uint256 tokensClaimed;
     }
-    //bool isBlackListed;
 
     // Token must be transfered to the protocol before the presale starts
     // The token being presaled
@@ -56,8 +65,7 @@ contract DeStake is Ownable {
     // After the presale is over, the liquidity phase can be started.
     bool private isLiquidityPhaseActive;
 
-    // Should be public to allow for the buyer to see the fees.
-    // In percentige
+    // 3% fees for the protocol
     uint256 public protocolFee = 3;
 
     // Min and max token buy per buyer address (can be curcemvented by buyer using multiple addresses)
@@ -132,9 +140,11 @@ contract DeStake is Ownable {
         protocolFeeAddress = _protocolFeeAddress;
         vestingDuration = _vestingDuration;
         token = IERC20(_token);
-        //! Extend presale duration if needed, function onlyonwer
     }
 
+    /// @notice When a buyer wants to buy tokens he will call this function.
+    /// @dev Buyer must send ETH when calling the function.
+    /// @dev Requires for the buyer to not be blacklisted and the presale to be active.
     function buyTokens() external payable notBLackListed presaleActive {
         if (msg.value == 0) {
             revert NoETHProvided();
@@ -153,7 +163,7 @@ contract DeStake is Ownable {
 
         uint256 amount = purchaseValue / ethPricePerToken;
         if (amount < minTokenBuy || amount > maxTokenBuy) {
-            revert MinMaxBuyNotReached();
+            revert OutOfMinMaxAmount();
         }
 
         totalTokensSold += amount;
@@ -167,7 +177,7 @@ contract DeStake is Ownable {
             buyer.buyerAddress = msg.sender;
         }
         buyer.tokensBought += amount;
-        buyer.ethSpent += msg.value;
+        buyer.ethSpent += msg.value - fees;
 
         buyers[msg.sender] = buyer;
 
@@ -176,6 +186,9 @@ contract DeStake is Ownable {
         emit TokensPurchased(address(msg.sender), amount);
     }
 
+    /// @notice When a buyer wants to claim his tokens he will call this function.
+    /// @notice The buyer can only claim tokens in batches based on the vesting time passed.
+    /// @dev Requires for the vesting period to have started.
     function claimTokens() external vestingStarted {
         Buyer memory buyer = buyers[msg.sender];
         require(buyer.tokensBought > 0, "No tokens bought");
@@ -191,6 +204,25 @@ contract DeStake is Ownable {
         emit TokensClaiemd(address(msg.sender), claimableTokens);
     }
 
+    /// @notice When a buyer wants to exit a presale , or the presale was not succesfull.
+    /// @notice The buyer returns the tokens he claimed to the contract and receives the ETH he spent.
+    /// @dev Requires that user to have actually spent ETH.
+    function withdrawEth() external {
+        Buyer memory buyer = buyers[msg.sender];
+        require(buyer.ethSpent > 0, "No ETH to withdraw");
+        buyer.ethSpent = 0;
+        buyers[msg.sender] = buyer;
+
+        if (buyer.tokensClaimed > 0) {
+            token.safeTransferFrom(msg.sender, address(this), buyer.tokensClaimed);
+        }
+
+        (bool success,) = payable(msg.sender).call{value: buyer.ethSpent}("");
+        require(success, "Failed to withdraw ETH");
+    }
+
+    /// @notice Owner can withdraw the accumulated fees.
+    /// @dev Can be executed only by the owner.
     function withdrawFees() external onlyOwner {
         require(totalFeesAcquired > 0, "No fees to withdraw");
         totalFeesAcquired = 0;
@@ -198,64 +230,104 @@ contract DeStake is Ownable {
         require(success, "Failed to withdraw fees");
     }
 
+    /// @notice Owner can increase duration for the presale, if more tokens are provided or not all were sold.
+    /// @dev Can be executed only by the owner and the presale must be active.
+    /// @param increasedDuration duration increase variable.
     function increasePresaleDuration(uint256 increasedDuration) external onlyOwner presaleActive {
         presaleDuration += increasedDuration;
         presaleEndDate += increasedDuration;
     }
 
+    /// @notice Owner can increase vesting duration with this function.
+    /// @dev Can be executed only by the owner.
+    /// @param increaseVestingDuration vesting duration increase variable.
     function increaseVestingDuration(uint256 increaseVestingDuration) external onlyOwner {
         require(increaseVestingDuration > 0, "Increase vesting duration must be greater than 0");
 
         vestingDuration += increaseVestingDuration;
     }
 
+    /// @notice Owner can increase the price of the token.
+    /// @dev Can be executed only by the owner.
+    /// @param _ethPricePerToken New price per token.
     function updateEthPricePerToken(uint256 _ethPricePerToken) external onlyOwner {
         require(_ethPricePerToken > 0, "Price per token must be greater than 0");
         ethPricePerToken = _ethPricePerToken;
     }
 
+    /// @notice Owner can increase the the hard cap of the token.
+    /// @dev Can be executed only by the owner and the presale must be active.
+    /// @param _tokenHardCapIncrement New hard cap for the token.
     function increaseHardCap(uint256 _tokenHardCapIncrement) external onlyOwner presaleActive {
         require(_tokenHardCapIncrement > tokenHardCap, "Token hard cap must be bigger than before");
         tokenHardCap += _tokenHardCapIncrement;
     }
 
+    /// @notice Owner can blacklist addresses with this function.
+    /// @dev Can be executed only by the owner.
+    /// @param user The address of the blacklisted user.
     function blackList(address user) external onlyOwner {
         require(user != address(0), "Invalid address");
         require(!blackListedUsers[user], "User is already blacklisted");
         blackListedUsers[user] = true;
     }
 
+    /// @notice Owner can whitelist addresses with this function if they have been blacklisted.
+    /// @dev Can be executed only by the owner.
+    /// @param user The address of the whitelisted user.
     function whiteList(address user) external onlyOwner {
         require(user != address(0), "Invalid address");
         require(blackListedUsers[user], "User is not blacklisted");
         blackListedUsers[user] = false;
     }
 
+    /// @notice Function to check if presale has started.
+    /// @dev Can be executed by anyone.
     function hasPresaleStarted() public view returns (bool) {
         return hasStarted;
     }
 
+    /// @notice Function to check if presale has ended.
+    /// @dev Can be executed by anyone.
     function hasPresaleEnded() public view returns (bool) {
         return hasEnded;
     }
 
+
+    /// @notice Function to check the amount of ETH raised by the presale.
+    /// @dev Can be executed only by the owner.
     function amountETHRaised() external view onlyOwner returns (uint256) {
         return totalEthRaised;
     }
 
+    /// @notice Function to check the price of a token.
+    /// @dev Can be executed by anyone.
     function getTokenPrice() external view returns (uint256) {
         return ethPricePerToken;
     }
 
+    /// @notice Function to check the tokens already sold.
+    /// @dev Can be executed only by the owner.
     function tokensSold() external view onlyOwner returns (uint256) {
         return totalTokensSold;
     }
 
+    /// @notice Function to check if the vesting period is over.
+    /// @dev Can be executed by anyone.
     function isVestingDurationOver() public view returns (bool) {
         return block.timestamp > presaleEndDate + vestingDuration;
     }
 
-    function getClaimablePercentige() public view returns (uint256) {
+    /// @notice Function to check the amount of tokens a user can buy for certain amount of ETH.
+    /// @dev Can be executed by anyone.
+    /// @param ethAmount The amount of ETH the buyer wants to spend.
+    function calculateTokensBought(uint256 ethAmount) external view returns (uint256) {
+        return ethAmount / ethPricePerToken;
+    }
+
+    /// @notice Function to calculate the percentige of tokens that can be claimed at any point in time.
+    /// @dev Can be executed by anyone.
+    function getClaimablePercentige() private view returns (uint256) {
         require(block.timestamp > presaleEndDate, "Presale is not over yet");
         uint256 vestingEndDate = presaleEndDate + vestingDuration;
         uint256 percentige;
