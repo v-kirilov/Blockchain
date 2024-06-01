@@ -1,13 +1,12 @@
-// _______              ______  ________   ______   __    __  ________ 
+// _______              ______  ________   ______   __    __  ________
 //  |       \            /      \|        \ /      \ |  \  /  \|        \
 //  | $$$$$$$\  ______  |  $$$$$$\\$$$$$$$$|  $$$$$$\| $$ /  $$| $$$$$$$$
-//  | $$  | $$ /      \ | $$___\$$  | $$   | $$__| $$| $$/  $$ | $$__    
-//  | $$  | $$| $$    $$ _\$$$$$$\  | $$   | $$$$$$$$| $$$$$\  | $$$$$   
-//  | $$__/ $$| $$$$$$$$|  \__| $$  | $$   | $$  | $$| $$ \$$\ | $$_____ 
+//  | $$  | $$ /      \ | $$___\$$  | $$   | $$__| $$| $$/  $$ | $$__
+//  | $$  | $$| $$    $$ _\$$$$$$\  | $$   | $$$$$$$$| $$$$$\  | $$$$$
+//  | $$__/ $$| $$$$$$$$|  \__| $$  | $$   | $$  | $$| $$ \$$\ | $$_____
 //  | $$    $$ \$$     \ \$$    $$  | $$   | $$  | $$| $$  \$$\| $$     \
-//  | $$  | $$|  $$$$$$\ \$$    \   | $$   | $$    $$| $$  $$  | $$  \   
+//  | $$  | $$|  $$$$$$\ \$$    \   | $$   | $$    $$| $$  $$  | $$  \
 //   \$$$$$$$   \$$$$$$$  \$$$$$$    \$$    \$$   \$$ \$$   \$$ \$$$$$$$$
-                                                                                                                                                       
 
 // The contract is made with assumptions that for every presale there will be a separate contract deployed.
 
@@ -47,7 +46,6 @@ contract DeStake is Ownable {
 
     // Presale start date and duration for the tokens
     uint256 public preSaleStartDate;
-    uint256 public presaleDuration;
     uint256 public presaleEndDate;
 
     // Vesting duration after the presale period is over
@@ -66,7 +64,7 @@ contract DeStake is Ownable {
     bool private isLiquidityPhaseActive;
 
     // 3% fees for the protocol
-    uint256 public protocolFee = 3;
+    uint256 public protocolFee = 0;
 
     // Min and max token buy per buyer address (can be curcemvented by buyer using multiple addresses)
     uint256 public minTokenBuy;
@@ -132,13 +130,23 @@ contract DeStake is Ownable {
         uint256 _presaleDuration,
         address _token,
         address _protocolFeeAddress,
-        uint256 _vestingDuration
+        uint256 _vestingDuration,
+        uint256 _ethPricePerToken,
+        uint256 _protocolFees
     ) Ownable(msg.sender) {
+        require(_preSaleStartDate > block.timestamp, "Presale start date must be in the future");
+        require(_presaleDuration > 0, "Presale duration must be greater than 0");
+        require(_token != address(0), "Invalid token address");
+        require(_protocolFeeAddress != address(0), "Invalid protocol fee address");
+        require(_vestingDuration > 0, "Vesting duration must be greater than 0");
+        require(_ethPricePerToken > 0, "Price per token must be greater than 0");
+        require(_protocolFees > 0 && _protocolFees < 100, "Protocol fees must be greater than 0 and less than 100");
         preSaleStartDate = _preSaleStartDate;
-        presaleDuration = _presaleDuration;
-        presaleEndDate = preSaleStartDate + presaleDuration;
+        presaleEndDate = preSaleStartDate;
         protocolFeeAddress = _protocolFeeAddress;
         vestingDuration = _vestingDuration;
+        ethPricePerToken = _ethPricePerToken;
+        protocolFee = _protocolFees;
         token = IERC20(_token);
     }
 
@@ -149,7 +157,7 @@ contract DeStake is Ownable {
         if (msg.value == 0) {
             revert NoETHProvided();
         }
-        if (!hasStarted) {
+        if (hasStarted) {
             revert PresaleNotStarted();
         }
         if (hasEnded) {
@@ -234,17 +242,17 @@ contract DeStake is Ownable {
     /// @dev Can be executed only by the owner and the presale must be active.
     /// @param increasedDuration duration increase variable.
     function increasePresaleDuration(uint256 increasedDuration) external onlyOwner presaleActive {
-        presaleDuration += increasedDuration;
+        require(increasedDuration > 0, "Increase duration must be greater than 0");
         presaleEndDate += increasedDuration;
     }
 
     /// @notice Owner can increase vesting duration with this function.
     /// @dev Can be executed only by the owner.
-    /// @param increaseVestingDuration vesting duration increase variable.
-    function increaseVestingDuration(uint256 increaseVestingDuration) external onlyOwner {
-        require(increaseVestingDuration > 0, "Increase vesting duration must be greater than 0");
+    /// @param _increaseVestingDuration vesting duration increase variable.
+    function increaseVestingDuration(uint256 _increaseVestingDuration) external onlyOwner {
+        require(_increaseVestingDuration > 0, "Increase vesting duration must be greater than 0");
 
-        vestingDuration += increaseVestingDuration;
+        vestingDuration += _increaseVestingDuration;
     }
 
     /// @notice Owner can increase the price of the token.
@@ -283,16 +291,33 @@ contract DeStake is Ownable {
 
     /// @notice Function to check if presale has started.
     /// @dev Can be executed by anyone.
-    function hasPresaleStarted() public view returns (bool) {
-        return hasStarted;
+    function hasPresaleStarted() public returns (bool) {
+        if (hasPresaleEnded()) {
+            return false;
+        }
+        if (hasStarted) {
+            return true;
+        }
+        if (preSaleStartDate < block.timestamp && presaleEndDate > block.timestamp) {
+            hasStarted = true;
+            return true;
+        }
+        return false;
     }
 
     /// @notice Function to check if presale has ended.
     /// @dev Can be executed by anyone.
-    function hasPresaleEnded() public view returns (bool) {
-        return hasEnded;
+    function hasPresaleEnded() public returns (bool) {
+        if (hasEnded) {
+            return true;
+        }
+        if (presaleEndDate < block.timestamp) {
+            hasEnded = true;
+            return true;
+        }else {
+            return false;
+        }
     }
-
 
     /// @notice Function to check the amount of ETH raised by the presale.
     /// @dev Can be executed only by the owner.
