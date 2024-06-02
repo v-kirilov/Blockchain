@@ -17,9 +17,22 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract DeStake is Ownable {
-    using SafeERC20 for IERC20;
+/*
+ * @title DeStake
+ * @author Viktor Kirilov
+ *
+ * The system is designed to be as minimal as possible.
+ * This is a contract design for holding presale of tokens:
+ * - For every staking pool there will be a separate contract deployed.
+ *
+ *
+ * @notice This contract is based on the best practises of a staking presale contract.
+ */
 
+contract DeStake is Ownable {
+    ///-///-///-///
+    // Errors
+    ///-///-///-///
     error NotPossible();
     error PresaleOver();
     error PresaleNotStarted();
@@ -29,6 +42,14 @@ contract DeStake is Ownable {
     error NoETHProvided();
     error VestingNotStarted();
 
+    ///-///-///-///
+    // Types
+    ///-///-///-///
+    using SafeERC20 for IERC20;
+
+    ///-///-///-///
+    // State Variables
+    ///-///-///-///
     // Info for the buyer, the amount of tokens bought and the amount of ETH spent.
     struct Buyer {
         address buyerAddress;
@@ -37,11 +58,10 @@ contract DeStake is Ownable {
         uint256 tokensClaimed;
     }
 
-    // Token must be transfered to the protocol before the presale starts
     // The token being presaled
     IERC20 public immutable token;
 
-    // Tokens that are for sale during presale
+    // Amount of tokens that are for sale during presale
     uint256 public tokenHardCap;
 
     // Presale start date and duration for the tokens
@@ -51,19 +71,20 @@ contract DeStake is Ownable {
     // Vesting duration after the presale period is over
     uint256 public vestingDuration;
 
+    // Percentige of takens that can be claimed at any point in time
     uint256 claimableTokensPercentige;
 
     // Price of the token in ETH, which can be change later on depenging on the presale status
     uint256 public ethPricePerToken;
 
-    // Can be private, as public functions are provided to check the status of the presale.
+    // Booleans to keep track of the presale status
     bool private hasStarted;
     bool private hasEnded;
 
     // After the presale is over, the liquidity phase can be started.
     bool private isLiquidityPhaseActive;
 
-    // 3% fees for the protocol
+    // Fees for the protocol
     uint256 public protocolFee = 0;
 
     // Min and max token buy per buyer address (can be curcemvented by buyer using multiple addresses)
@@ -76,10 +97,10 @@ contract DeStake is Ownable {
     // To keep track of the total ETH raised during the presale.
     uint256 private totalEthRaised;
 
-    // Good to have for info, the amount of tokens sold, although this can be checked by the amount of tokens this contract have.
+    // The amount of tokens sold.
     uint256 private totalTokensSold;
 
-    // Good to have for info, the amount of acquired fees.
+    // The amount of acquired fees.
     uint256 private totalFeesAcquired;
 
     // The address of the Uniswap pair, if the liquidity phase is active.
@@ -87,10 +108,18 @@ contract DeStake is Ownable {
 
     // Mapping to store the buyers.
     mapping(address buyerAddress => Buyer buyers) public buyers;
-    // Usefull mapping to store the blacklisted users if neccesarry.
+    // Mapping to store the blacklisted users.
     mapping(address blacklisted => bool isBlackListed) public blackListedUsers;
 
-    //Modifiers
+    ///-///-///-///
+    // Events
+    ///-///-///-///
+    event TokensPurchased(address indexed buyer, uint256 amount);
+    event TokensClaiemd(address indexed buyer, uint256 amount);
+
+    ///-///-///-///
+    // Modifiers
+    ///-///-///-///
     modifier notBLackListed() {
         if (blackListedUsers[msg.sender]) {
             revert UserBlackListed();
@@ -121,10 +150,9 @@ contract DeStake is Ownable {
         _;
     }
 
-    //Events
-    event TokensPurchased(address indexed buyer, uint256 amount);
-    event TokensClaiemd(address indexed buyer, uint256 amount);
-
+    ///-///-///-///
+    // Functions
+    ///-///-///-///
     constructor(
         uint256 _preSaleStartDate,
         uint256 _presaleDuration,
@@ -150,6 +178,9 @@ contract DeStake is Ownable {
         token = IERC20(_token);
     }
 
+    ///-///-///-///
+    // External Functions
+    ///-///-///-///
     /// @notice When a buyer wants to buy tokens he will call this function.
     /// @dev Buyer must send ETH when calling the function.
     /// @dev Requires for the buyer to not be blacklisted and the presale to be active.
@@ -289,6 +320,34 @@ contract DeStake is Ownable {
         blackListedUsers[user] = false;
     }
 
+        /// @notice Function to check the amount of ETH raised by the presale.
+    /// @dev Can be executed only by the owner.
+    function amountETHRaised() external view onlyOwner returns (uint256) {
+        return totalEthRaised;
+    }
+
+    /// @notice Function to check the price of a token.
+    /// @dev Can be executed by anyone.
+    function getTokenPrice() external view returns (uint256) {
+        return ethPricePerToken;
+    }
+
+    /// @notice Function to check the tokens already sold.
+    /// @dev Can be executed only by the owner.
+    function tokensSold() external view onlyOwner returns (uint256) {
+        return totalTokensSold;
+    }
+
+        /// @notice Function to check the amount of tokens a user can buy for certain amount of ETH.
+    /// @dev Can be executed by anyone.
+    /// @param ethAmount The amount of ETH the buyer wants to spend.
+    function calculateTokensBought(uint256 ethAmount) external view returns (uint256) {
+        return ethAmount / ethPricePerToken;
+    }
+
+    ///-///-///-///
+    // Public Functions
+    ///-///-///-///
     /// @notice Function to check if presale has started.
     /// @dev Can be executed by anyone.
     function hasPresaleStarted() public returns (bool) {
@@ -314,27 +373,9 @@ contract DeStake is Ownable {
         if (presaleEndDate < block.timestamp) {
             hasEnded = true;
             return true;
-        }else {
+        } else {
             return false;
         }
-    }
-
-    /// @notice Function to check the amount of ETH raised by the presale.
-    /// @dev Can be executed only by the owner.
-    function amountETHRaised() external view onlyOwner returns (uint256) {
-        return totalEthRaised;
-    }
-
-    /// @notice Function to check the price of a token.
-    /// @dev Can be executed by anyone.
-    function getTokenPrice() external view returns (uint256) {
-        return ethPricePerToken;
-    }
-
-    /// @notice Function to check the tokens already sold.
-    /// @dev Can be executed only by the owner.
-    function tokensSold() external view onlyOwner returns (uint256) {
-        return totalTokensSold;
     }
 
     /// @notice Function to check if the vesting period is over.
@@ -343,13 +384,9 @@ contract DeStake is Ownable {
         return block.timestamp > presaleEndDate + vestingDuration;
     }
 
-    /// @notice Function to check the amount of tokens a user can buy for certain amount of ETH.
-    /// @dev Can be executed by anyone.
-    /// @param ethAmount The amount of ETH the buyer wants to spend.
-    function calculateTokensBought(uint256 ethAmount) external view returns (uint256) {
-        return ethAmount / ethPricePerToken;
-    }
-
+    ///-///-///-///
+    // Private Functions
+    ///-///-///-///
     /// @notice Function to calculate the percentige of tokens that can be claimed at any point in time.
     /// @dev Can be executed by anyone.
     function getClaimablePercentige() private view returns (uint256) {
