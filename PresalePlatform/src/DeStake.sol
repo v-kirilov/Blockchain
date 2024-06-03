@@ -128,16 +128,10 @@ contract DeStake is Ownable {
     }
 
     modifier presaleActive() {
-        if (hasEnded) {
+        if (hasPresaleEnded()) {
             revert PresaleOver();
         }
-        if (block.timestamp > presaleEndDate) {
-            revert PresaleOver();
-        }
-        if (!hasStarted) {
-            revert PresaleNotStarted();
-        }
-        if (block.timestamp < preSaleStartDate) {
+        if (!hasPresaleStarted()) {
             revert PresaleNotStarted();
         }
         _;
@@ -155,26 +149,32 @@ contract DeStake is Ownable {
     ///-///-///-///
     constructor(
         uint256 _preSaleStartDate,
-        uint256 _presaleDuration,
+        uint256 _presaleEndDate,
         address _token,
         address _protocolFeeAddress,
         uint256 _vestingDuration,
         uint256 _ethPricePerToken,
-        uint256 _protocolFees
+        uint256 _protocolFees,
+        uint256 _minTokenBuy,
+        uint256 _maxTokenBuy,
+        uint256 _tokenHardCap
     ) Ownable(msg.sender) {
         require(_preSaleStartDate > block.timestamp, "Presale start date must be in the future");
-        require(_presaleDuration > 0, "Presale duration must be greater than 0");
+        require(_presaleEndDate > _preSaleStartDate, "Presale end date not correct");
         require(_token != address(0), "Invalid token address");
         require(_protocolFeeAddress != address(0), "Invalid protocol fee address");
         require(_vestingDuration > 0, "Vesting duration must be greater than 0");
         require(_ethPricePerToken > 0, "Price per token must be greater than 0");
         require(_protocolFees > 0 && _protocolFees < 100, "Protocol fees must be greater than 0 and less than 100");
         preSaleStartDate = _preSaleStartDate;
-        presaleEndDate = preSaleStartDate;
+        presaleEndDate = _presaleEndDate;
         protocolFeeAddress = _protocolFeeAddress;
         vestingDuration = _vestingDuration;
         ethPricePerToken = _ethPricePerToken;
         protocolFee = _protocolFees;
+        minTokenBuy = _minTokenBuy;
+        maxTokenBuy = _maxTokenBuy;
+        tokenHardCap = _tokenHardCap;
         token = IERC20(_token);
     }
 
@@ -187,12 +187,6 @@ contract DeStake is Ownable {
     function buyTokens() external payable notBLackListed presaleActive {
         if (msg.value == 0) {
             revert NoETHProvided();
-        }
-        if (hasStarted) {
-            revert PresaleNotStarted();
-        }
-        if (hasEnded) {
-            revert PresaleOver();
         }
 
         //Take into account the fees.
