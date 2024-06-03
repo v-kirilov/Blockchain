@@ -8,8 +8,6 @@
 //  | $$  | $$|  $$$$$$\ \$$    \   | $$   | $$    $$| $$  $$  | $$  \
 //   \$$$$$$$   \$$$$$$$  \$$$$$$    \$$    \$$   \$$ \$$   \$$ \$$$$$$$$
 
-// The contract is made with assumptions that for every presale there will be a separate contract deployed.
-
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.25;
 
@@ -116,6 +114,14 @@ contract DeStake is Ownable {
     ///-///-///-///
     event TokensPurchased(address indexed buyer, uint256 amount);
     event TokensClaiemd(address indexed buyer, uint256 amount);
+    event PresaleEnded();
+    event PresaleStarted();
+    event ETHWithdrawn(uint256 amount);
+    event PresaleDurationIncreased(uint256 amount);
+    event TokenPriceUpdated(uint256 pricePerToken);
+    event HardCapIncreased(uint256 newHardCapAmount);
+    event UserIsBlackListed(address indexed user);
+    event UserIsWhiteListed(address indexed user);
 
     ///-///-///-///
     // Modifiers
@@ -252,6 +258,7 @@ contract DeStake is Ownable {
 
         (bool success,) = payable(msg.sender).call{value: buyer.ethSpent}("");
         require(success, "Failed to withdraw ETH");
+        emit ETHWithdrawn(buyer.ethSpent);
     }
 
     /// @notice Owner can withdraw the accumulated fees.
@@ -269,6 +276,7 @@ contract DeStake is Ownable {
     function increasePresaleDuration(uint256 increasedDuration) external onlyOwner presaleActive {
         require(increasedDuration > 0, "Increase duration must be greater than 0");
         presaleEndDate += increasedDuration;
+        emit PresaleDurationIncreased(increasedDuration);
     }
 
     /// @notice Owner can increase vesting duration with this function.
@@ -276,7 +284,6 @@ contract DeStake is Ownable {
     /// @param _increaseVestingDuration vesting duration increase variable.
     function increaseVestingDuration(uint256 _increaseVestingDuration) external onlyOwner {
         require(_increaseVestingDuration > 0, "Increase vesting duration must be greater than 0");
-
         vestingDuration += _increaseVestingDuration;
     }
 
@@ -286,6 +293,7 @@ contract DeStake is Ownable {
     function updateEthPricePerToken(uint256 _ethPricePerToken) external onlyOwner {
         require(_ethPricePerToken > 0, "Price per token must be greater than 0");
         ethPricePerToken = _ethPricePerToken;
+        emit TokenPriceUpdated(_ethPricePerToken);
     }
 
     /// @notice Owner can increase the the hard cap of the token.
@@ -294,6 +302,7 @@ contract DeStake is Ownable {
     function increaseHardCap(uint256 _tokenHardCapIncrement) external onlyOwner presaleActive {
         require(_tokenHardCapIncrement > tokenHardCap, "Token hard cap must be bigger than before");
         tokenHardCap += _tokenHardCapIncrement;
+        emit HardCapIncreased(tokenHardCap);
     }
 
     /// @notice Owner can blacklist addresses with this function.
@@ -303,6 +312,7 @@ contract DeStake is Ownable {
         require(user != address(0), "Invalid address");
         require(!blackListedUsers[user], "User is already blacklisted");
         blackListedUsers[user] = true;
+        emit UserIsBlackListed(user);
     }
 
     /// @notice Owner can whitelist addresses with this function if they have been blacklisted.
@@ -312,6 +322,7 @@ contract DeStake is Ownable {
         require(user != address(0), "Invalid address");
         require(blackListedUsers[user], "User is not blacklisted");
         blackListedUsers[user] = false;
+        emit UserIsWhiteListed(user);
     }
 
         /// @notice Function to check the amount of ETH raised by the presale.
@@ -353,6 +364,7 @@ contract DeStake is Ownable {
         }
         if (preSaleStartDate < block.timestamp && presaleEndDate > block.timestamp) {
             hasStarted = true;
+            emit PresaleStarted();
             return true;
         }
         return false;
@@ -366,6 +378,7 @@ contract DeStake is Ownable {
         }
         if (presaleEndDate < block.timestamp) {
             hasEnded = true;
+            emit PresaleEnded();
             return true;
         } else {
             return false;
