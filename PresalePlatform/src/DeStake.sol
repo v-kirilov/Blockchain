@@ -14,6 +14,7 @@ pragma solidity 0.8.25;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 
 /*
  * @title DeStake
@@ -26,7 +27,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *
  * @notice This contract is based on the best practises of a staking presale contract.
  */
-
+//! USE WETH!
 contract DeStake is Ownable {
     ///-///-///-///
     // Errors
@@ -58,6 +59,13 @@ contract DeStake is Ownable {
 
     // The token being presaled
     IERC20 public immutable token;
+    // Uniswap factory contract address on mainnet
+    IUniswapV2Factory immutable factory = IUniswapV2Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
+    //0xB7f907f7A9eBC822a80BD25E224be42Ce0A698A0 - Sepolia for testing purposes
+    //WEH address
+    address immutable WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    // The address of the Uniswap pair, if the liquidity phase is active should be different than address 0.
+    address public uniswapPairAddress;
 
     // Amount of tokens that are for sale during presale
     uint256 public tokenHardCap;
@@ -116,7 +124,7 @@ contract DeStake is Ownable {
     event TokensClaiemd(address indexed buyer, uint256 amount);
     event PresaleEnded();
     event PresaleStarted();
-    event ETHWithdrawn(uint256 amount);
+    event ETHWithdrawn(address indexed user, uint256 amount);
     event PresaleDurationIncreased(uint256 amount);
     event TokenPriceUpdated(uint256 pricePerToken);
     event HardCapIncreased(uint256 newHardCapAmount);
@@ -247,6 +255,7 @@ contract DeStake is Ownable {
     /// @notice The buyer returns the tokens he claimed to the contract and receives the ETH he spent.
     /// @dev Requires that user to have actually spent ETH.
     function withdrawEth() external {
+        require(!isLiquidityPhaseActive, "Liquidity phase is active");
         Buyer memory buyer = buyers[msg.sender];
         require(buyer.ethSpent > 0, "No ETH to withdraw");
         buyer.ethSpent = 0;
@@ -258,7 +267,7 @@ contract DeStake is Ownable {
 
         (bool success,) = payable(msg.sender).call{value: buyer.ethSpent}("");
         require(success, "Failed to withdraw ETH");
-        emit ETHWithdrawn(buyer.ethSpent);
+        emit ETHWithdrawn(msg.sender, buyer.ethSpent);
     }
 
     /// @notice Owner can withdraw the accumulated fees.
@@ -296,7 +305,7 @@ contract DeStake is Ownable {
         emit TokenPriceUpdated(_ethPricePerToken);
     }
 
-    /// @notice Owner can increase the the hard cap of the token.
+    /// @notice Owner can increase the hard cap of the token.
     /// @dev Can be executed only by the owner and the presale must be active.
     /// @param _tokenHardCapIncrement New hard cap for the token.
     function increaseHardCap(uint256 _tokenHardCapIncrement) external onlyOwner presaleActive {
@@ -325,7 +334,7 @@ contract DeStake is Ownable {
         emit UserIsWhiteListed(user);
     }
 
-        /// @notice Function to check the amount of ETH raised by the presale.
+    /// @notice Function to check the amount of ETH raised by the presale.
     /// @dev Can be executed only by the owner.
     function amountETHRaised() external view onlyOwner returns (uint256) {
         return totalEthRaised;
@@ -343,11 +352,23 @@ contract DeStake is Ownable {
         return totalTokensSold;
     }
 
-        /// @notice Function to check the amount of tokens a user can buy for certain amount of ETH.
+    /// @notice Function to check the amount of tokens a user can buy for certain amount of ETH.
     /// @dev Can be executed by anyone.
     /// @param ethAmount The amount of ETH the buyer wants to spend.
     function calculateTokensBought(uint256 ethAmount) external view returns (uint256) {
         return ethAmount / ethPricePerToken;
+    }
+
+    function checkTokenLiquidityPhase() external view returns (bool) {
+        return isLiquidityPhaseActive;
+    }
+
+    function activateLiquidityPhase(address _uniswapPairAddress) external onlyOwner {
+        address tokenSwapAddress = factory.getPair(address(token), WETH);
+        require(tokenSwapAddress != address(0), "Pair not found");
+        require(tokenSwapAddress == _uniswapPairAddress, "Invalid pair address");
+        uniswapPairAddress = _uniswapPairAddress;
+        isLiquidityPhaseActive = true;
     }
 
     ///-///-///-///
