@@ -22,6 +22,10 @@ The core contract that manages the presale process. Key functions include:
 * `increasePresaleDuration` : Presale duration can be increased by the owner at any point.
 * `increaseVestingDuration` : Vesting duration can be increased by the owner at any point.
 * `updateEthPricePerToken` : Price for the tokens can be updated by the owner at any point in time.
+* `increaseHardCap` : Owner can increase the hardcap for the token.
+* `blackList` : Owner can blacklist certain addresses from participating in the presale.
+* `whiteList` : Owner can whitelist certain addresses to remove them from the blacklist if he so desires.
+* `activateLiquidityPhase` : Owner can activate the liquidity phase of the contract at any point. 
 
 ## Vesting Mechanism
 Tokens are not immediately available after the presale ends. Instead, they are released over a specified vesting period. The claimTokens function allows users to claim a portion of their purchased tokens based on the vesting schedule. This mechanism helps to prevent large token dumps on the market, promoting price stability.
