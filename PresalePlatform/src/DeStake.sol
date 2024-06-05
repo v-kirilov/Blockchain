@@ -309,7 +309,7 @@ contract DeStake is Ownable {
     /// @dev Can be executed only by the owner and the presale must be active.
     /// @param _tokenHardCapIncrement New hard cap for the token.
     function increaseHardCap(uint256 _tokenHardCapIncrement) external onlyOwner presaleActive {
-        require(_tokenHardCapIncrement > tokenHardCap, "Token hard cap must be bigger than before");
+        require(_tokenHardCapIncrement > 0, "<=0");
         tokenHardCap += _tokenHardCapIncrement;
         emit HardCapIncreased(tokenHardCap);
     }
