@@ -14,7 +14,7 @@ contract DeStakeTest is Test {
     uint256 constant VestingDuration = 1000;
     uint256 constant ProtocolFees = 3; //In percentige
     uint256 constant minTokenAmount = 100; //min amount of tokens to buy
-    uint256 constant maxTokenAmount = 100000; //max amount of tokens to buy
+    uint256 constant maxTokenAmount = 10000; //max amount of tokens to buy
     uint256 constant tokenHardCap = 1e8; // total tokenCap
     address public FeeAddress;
     address buyer = makeAddr("buyer");
@@ -50,6 +50,40 @@ contract DeStakeTest is Test {
 
         uint256 actualTokens = detoken.balanceOf(buyer);
         assertEq(actualTokens, expectedTokens);
+        vm.stopPrank();
+    }
+
+        function test_buyTokensRevertsWhenNoEthIsSent() public {
+        uint256 ethAmount = 0 ether;
+        vm.warp(100);
+        vm.roll(5);
+        vm.startPrank(buyer);
+        vm.expectRevert(DeStake.NoETHProvided.selector);
+        destake.buyTokens{value: ethAmount}();
+
+        vm.stopPrank();
+    }
+
+            function test_buyTokensRevertsWhenUnderMinTokensToBuy() public {
+        uint256 ethAmount = 0.001 ether;
+        vm.warp(100);
+        vm.roll(5);
+        vm.startPrank(buyer);
+        vm.expectRevert(DeStake.OutOfMinMaxAmount.selector);
+        destake.buyTokens{value: ethAmount}();
+
+        vm.stopPrank();
+    }
+
+                function test_buyTokensRevertsWhenUnderMaxTokensToBuy() public {
+        uint256 ethAmount = 100 ether;
+        vm.warp(100);
+        vm.roll(5);
+        vm.deal(buyer, 100 ether);
+        vm.startPrank(buyer);
+        vm.expectRevert(DeStake.OutOfMinMaxAmount.selector);
+        destake.buyTokens{value: ethAmount}();
+
         vm.stopPrank();
     }
 
