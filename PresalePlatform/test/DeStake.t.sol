@@ -15,7 +15,7 @@ contract DeStakeTest is Test {
     uint256 constant ProtocolFees = 3; //In percentige
     uint256 constant minTokenAmount = 100; //min amount of tokens to buy
     uint256 constant maxTokenAmount = 10000; //max amount of tokens to buy
-    uint256 constant tokenHardCap = 1e8; // total tokenCap
+    uint256 constant tokenHardCap = 30000; // total tokenCap
     address public FeeAddress;
     address buyer = makeAddr("buyer");
 
@@ -39,7 +39,17 @@ contract DeStakeTest is Test {
         vm.deal(buyer, 1 ether);
     }
 
-    function test_buyTokens() public {
+    function buyTokens() public {
+        uint256 ethAmount = 1 ether;
+        vm.warp(100);
+        vm.roll(5);
+        vm.startPrank(buyer);
+        destake.buyTokens{value: ethAmount}();
+
+        vm.stopPrank();
+    }
+
+    function test_buyTokensSuccess() public {
         uint256 ethAmount = 1 ether;
         vm.warp(100);
         vm.roll(5);
@@ -53,7 +63,7 @@ contract DeStakeTest is Test {
         vm.stopPrank();
     }
 
-        function test_buyTokensRevertsWhenNoEthIsSent() public {
+    function test_buyTokensRevertsWhenNoEthIsSent() public {
         uint256 ethAmount = 0 ether;
         vm.warp(100);
         vm.roll(5);
@@ -64,7 +74,7 @@ contract DeStakeTest is Test {
         vm.stopPrank();
     }
 
-            function test_buyTokensRevertsWhenUnderMinTokensToBuy() public {
+    function test_buyTokensRevertsWhenUnderMinTokensToBuy() public {
         uint256 ethAmount = 0.001 ether;
         vm.warp(100);
         vm.roll(5);
@@ -75,7 +85,7 @@ contract DeStakeTest is Test {
         vm.stopPrank();
     }
 
-                function test_buyTokensRevertsWhenUnderMaxTokensToBuy() public {
+    function test_buyTokensRevertsWhenUnderMaxTokensToBuy() public {
         uint256 ethAmount = 100 ether;
         vm.warp(100);
         vm.roll(5);
@@ -83,6 +93,58 @@ contract DeStakeTest is Test {
         vm.startPrank(buyer);
         vm.expectRevert(DeStake.OutOfMinMaxAmount.selector);
         destake.buyTokens{value: ethAmount}();
+
+        vm.stopPrank();
+    }
+
+    function test_buyTokensRevertsWhenMaxCapReached() public {
+        uint256 ethAmount = 10 ether;
+        vm.warp(100);
+        vm.roll(5);
+
+        address buyer1 = makeAddr("buyer1");
+        vm.deal(buyer1, 10 ether);
+        vm.prank(buyer1);
+        destake.buyTokens{value: ethAmount}();
+
+        address buyer2 = makeAddr("buyer2");
+        vm.deal(buyer2, 10 ether);
+        vm.prank(buyer2);
+        destake.buyTokens{value: ethAmount}();
+
+        address buyer3 = makeAddr("buyer3");
+        vm.deal(buyer3, 10 ether);
+        vm.prank(buyer3);
+        destake.buyTokens{value: ethAmount}();
+
+        vm.deal(buyer, 10 ether);
+        vm.startPrank(buyer);
+        vm.expectRevert(DeStake.HardCapReached.selector);
+        destake.buyTokens{value: ethAmount}();
+
+        vm.stopPrank();
+    }
+
+    function test_claimTokensRevertsWhenVestingNotStarted() public {
+        vm.warp(100);
+        vm.roll(5);
+
+        vm.deal(buyer, 10 ether);
+        vm.startPrank(buyer);
+        vm.expectRevert(DeStake.VestingNotStarted.selector);
+        destake.claimTokens();
+
+        vm.stopPrank();
+    }
+
+      function test_claimTokensRevertsWhenNoTokenBought() public {
+        vm.warp(1005);
+        vm.roll(50);
+
+        vm.deal(buyer, 10 ether);
+        vm.startPrank(buyer);
+        vm.expectRevert("No tokens bought");
+        destake.claimTokens();
 
         vm.stopPrank();
     }
