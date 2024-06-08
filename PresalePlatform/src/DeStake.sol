@@ -256,17 +256,20 @@ contract DeStake is Ownable,Test {
     function withdrawEth() external {
         require(!isLiquidityPhaseActive, "Liquidity phase is active");
         Buyer memory buyer = buyers[msg.sender];
+        uint256 claimed = buyer.tokensClaimed;
         require(buyer.ethSpent > 0, "No ETH to withdraw");
+        uint256 spent = buyer.ethSpent;
         buyer.ethSpent = 0;
+        buyer.tokensClaimed = 0;
         buyers[msg.sender] = buyer;
 
-        if (buyer.tokensClaimed > 0) {
-            token.safeTransferFrom(msg.sender, address(this), buyer.tokensClaimed);
+        if (claimed > 0) {
+            token.safeTransferFrom(msg.sender, address(this), claimed);
         }
 
-        (bool success,) = payable(msg.sender).call{value: buyer.ethSpent}("");
+        (bool success,) = payable(msg.sender).call{value: spent}("");
         require(success, "Failed to withdraw ETH");
-        emit ETHWithdrawn(msg.sender, buyer.ethSpent);
+        emit ETHWithdrawn(msg.sender, spent);
     }
 
     /// @notice Owner can withdraw the accumulated fees.
@@ -372,6 +375,10 @@ contract DeStake is Ownable,Test {
 
     function getTokensBoughtByUser(address user) external view returns (uint256) {
         return buyers[user].tokensBought;
+    }
+
+    function getETHSpentByUser(address user) external view  returns (uint256) {
+        return buyers[user].ethSpent;
     }
 
     ///-///-///-///
