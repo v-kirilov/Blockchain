@@ -58,7 +58,7 @@ contract DeStakeTest is Test {
         uint256 expectedTokens = calculateTokensIncludingFees(ethAmount, ProtocolFees, ETHPricePerToken);
         console.log(expectedTokens);
 
-        uint256 actualTokens = detoken.balanceOf(buyer);
+        uint256 actualTokens = destake.getTokensBoughtByUser(address(buyer));
         assertEq(actualTokens, expectedTokens);
         vm.stopPrank();
     }
@@ -146,6 +146,50 @@ contract DeStakeTest is Test {
         vm.expectRevert("No tokens bought");
         destake.claimTokens();
 
+        vm.stopPrank();
+    }
+
+    function test_ClaimTokensRevertWhenClaimableAreZero() public {
+        buyTokens();
+        vm.warp(1001);
+        vm.roll(5);
+        console.log(block.timestamp);
+        vm.startPrank(buyer);
+        vm.expectRevert("No tokens to claim");
+        destake.claimTokens();
+        vm.stopPrank();
+    }
+
+        function test_ClaimTokensSuccess() public {
+        buyTokens();
+        vm.warp(3001);
+        vm.roll(15);
+        console.log(block.timestamp);
+        vm.startPrank(buyer);
+        destake.claimTokens();
+        uint256 actualTokens = detoken.balanceOf(buyer);
+        uint256 tokensBought = destake.getTokensBoughtByUser(address(buyer));
+        assertEq(actualTokens, tokensBought);
+        vm.stopPrank();
+    }
+
+    //! Test also when liquidity phase is active!!!
+    function test_withdrawEthRevertsWhenNoETHisSpend()  public {
+        vm.startPrank(buyer);
+        vm.expectRevert("No ETH to withdraw");
+        destake.withdrawEth();
+        vm.stopPrank();
+    }
+
+    function test_withdrawEthSuccess() public {
+        buyTokens();
+        vm.warp(1001);
+        vm.roll(5);
+        vm.startPrank(buyer);
+        uint256 ethSpent = destake.getETHSpentByUser(address(buyer));
+        destake.withdrawEth();
+        uint256 actualBalance = buyer.balance;
+       assertEq(actualBalance,ethSpent);
         vm.stopPrank();
     }
 
