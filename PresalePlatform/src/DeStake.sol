@@ -229,8 +229,6 @@ contract DeStake is Ownable,Test {
 
         buyers[msg.sender] = buyer;
 
-        token.safeTransfer(msg.sender, amount);
-
         emit TokensPurchased(address(msg.sender), amount);
     }
 
@@ -370,6 +368,10 @@ contract DeStake is Ownable,Test {
         require(tokenSwapAddress == _uniswapPairAddress, "Invalid pair address");
         uniswapPairAddress = _uniswapPairAddress;
         isLiquidityPhaseActive = true;
+    }
+
+    function getTokensBoughtByUser(address user) external view returns (uint256) {
+        return buyers[user].tokensBought;
     }
 
     ///-///-///-///
