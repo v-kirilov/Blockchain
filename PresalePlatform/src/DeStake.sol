@@ -15,6 +15,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import {Test, console} from "forge-std/Test.sol";
 
 /*
  * @title DeStake
@@ -28,7 +29,7 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
  * @notice This contract is based on the best practises of a staking presale contract.
  */
 //! USE WETH!
-contract DeStake is Ownable {
+contract DeStake is Ownable,Test {
     ///-///-///-///
     // Errors
     ///-///-///-///
@@ -424,8 +425,8 @@ contract DeStake is Ownable {
         if (block.timestamp > presaleEndDate + vestingDuration) {
             percentige = 100;
         } else {
-            uint256 vestingTimePassed = vestingEndDate - block.timestamp;
-            percentige = vestingTimePassed * 100 / vestingDuration;
+            uint256 vestingTimePassed = block.timestamp - presaleEndDate;
+            percentige = vestingTimePassed * 100 / (presaleEndDate + vestingDuration);
         }
         return percentige;
     }
