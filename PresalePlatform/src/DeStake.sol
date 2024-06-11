@@ -14,7 +14,8 @@ pragma solidity 0.8.25;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+//node_modules\@uniswap\v3-core\contracts\interfaces\IUniswapV3Factory.sol
 import {Test, console} from "forge-std/Test.sol";
 
 /*
@@ -29,7 +30,7 @@ import {Test, console} from "forge-std/Test.sol";
  * @notice This contract is based on the best practises of a staking presale contract.
  */
 //! USE WETH!
-contract DeStake is Ownable,Test {
+contract DeStake is Ownable, Test {
     ///-///-///-///
     // Errors
     ///-///-///-///
@@ -61,7 +62,7 @@ contract DeStake is Ownable,Test {
     // The token being presaled
     IERC20 public immutable token;
     // Uniswap factory contract address on mainnet
-    IUniswapV2Factory immutable factory = IUniswapV2Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
+    IUniswapV3Factory public factory = IUniswapV3Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
     //0xB7f907f7A9eBC822a80BD25E224be42Ce0A698A0 - Sepolia for testing purposes
     //WEH address
     address immutable WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -365,19 +366,33 @@ contract DeStake is Ownable,Test {
         return isLiquidityPhaseActive;
     }
 
-    function activateLiquidityPhase(address _uniswapPairAddress) external onlyOwner {
-        address tokenSwapAddress = factory.getPair(address(token), WETH);
+    /// @notice Function to set the liquidity phase, possible only if liquidity is provided for a Uniswap pair.
+    /// @dev getPool function from the UniswapV3Factory contract is used to get the address of the Uniswap pair.
+    /// @dev if the pair is existing it will return the address of the pair, otherwise it will return address 0.
+    /// @dev Can be executed by the owner of the contract only.
+    /// @param _uniswapPairAddress The addres for the uniswap factory.
+    /// @param fee The fee collected upon every swap in the pool, denominated in hundredths of a bip.
+    function activateLiquidityPhase(address _uniswapPairAddress, uint24 fee) external onlyOwner {
+        address tokenSwapAddress = factory.getPool(address(token), WETH, fee);
         require(tokenSwapAddress != address(0), "Pair not found");
         require(tokenSwapAddress == _uniswapPairAddress, "Invalid pair address");
         uniswapPairAddress = _uniswapPairAddress;
         isLiquidityPhaseActive = true;
     }
 
+    /// @notice Function to set the uniswapv3 factory address.
+    /// @dev Can be executed by the owner of the contract only.
+    /// @param uniSwapAddress The addres for the uniswap factory.
+    function setUniswapFactoryAddres(address uniSwapAddress)  external onlyOwner {
+        require(uniSwapAddress != address(0), "Invalid address");
+        factory = IUniswapV3Factory(uniSwapAddress);
+    }
+
     function getTokensBoughtByUser(address user) external view returns (uint256) {
         return buyers[user].tokensBought;
     }
 
-    function getETHSpentByUser(address user) external view  returns (uint256) {
+    function getETHSpentByUser(address user) external view returns (uint256) {
         return buyers[user].ethSpent;
     }
 
