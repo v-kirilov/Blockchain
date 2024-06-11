@@ -4,10 +4,13 @@ pragma solidity 0.8.25;
 import {Test, console} from "forge-std/Test.sol";
 import {DeStake} from "../src/DeStake.sol";
 import {DeToken} from "../src/DeToken.sol";
+import {UniswapV3FactoryMock} from "../src/Mock/UniswapV3FactoryMokc.sol";
 
 contract DeStakeTest is Test {
     DeStake public destake;
     DeToken public detoken;
+    UniswapV3FactoryMock public uniMock ;
+
     uint256 constant PreSaleStartDate = 10;
     uint256 constant ETHPricePerToken = 1e15; // 0.001 ETH per token
     uint256 constant PresaleEndDate = 1000;
@@ -21,6 +24,7 @@ contract DeStakeTest is Test {
 
     function setUp() public {
         detoken = new DeToken("DeToken", "DET");
+        uniMock = new UniswapV3FactoryMock();
 
         FeeAddress = address(0x1);
         destake = new DeStake(
@@ -48,6 +52,21 @@ contract DeStakeTest is Test {
 
         vm.stopPrank();
     }
+
+    function setUniswapFactoryAddres()  public {
+        destake.setUniswapFactoryAddres(address(uniMock));
+    }
+
+    function  test_setUniswapFactoryAddresRevertsWhenAddress0()  public {
+        vm.expectRevert("Invalid address");
+        destake.setUniswapFactoryAddres(address(0));
+    }
+
+        function  test_setUniswapFactoryAddresSuccess()  public {
+         destake.setUniswapFactoryAddres(address(uniMock));
+            assertEq(address(destake.factory()), address(uniMock));
+    }
+
 
     function test_buyTokensSuccess() public {
         uint256 ethAmount = 1 ether;
@@ -164,12 +183,25 @@ contract DeStakeTest is Test {
         buyTokens();
         vm.warp(3001);
         vm.roll(15);
-        console.log(block.timestamp);
         vm.startPrank(buyer);
         destake.claimTokens();
         uint256 actualTokens = detoken.balanceOf(buyer);
         uint256 tokensBought = destake.getTokensBoughtByUser(address(buyer));
         assertEq(actualTokens, tokensBought);
+        vm.stopPrank();
+    }
+
+            function test_ClaimHalfTokensAtMidPointOfVesting() public {
+        buyTokens();
+        vm.warp(2000);
+        vm.roll(15);
+        vm.startPrank(buyer);
+        destake.claimTokens();
+        uint256 actualTokens = detoken.balanceOf(buyer);
+        console.log(actualTokens);
+        uint256 tokensBought = destake.getTokensBoughtByUser(address(buyer));
+        console.log(tokensBought);
+        assertEq(actualTokens, tokensBought/2);
         vm.stopPrank();
     }
 
@@ -190,6 +222,23 @@ contract DeStakeTest is Test {
         destake.withdrawEth();
         uint256 actualBalance = buyer.balance;
        assertEq(actualBalance,ethSpent);
+        vm.stopPrank();
+    }
+
+        function test_withdrawSuccessAndClaimedTokensAreReturned() public {
+            //!
+        buyTokens();
+        vm.warp(2000);
+        vm.roll(10);
+        vm.startPrank(buyer);
+        destake.claimTokens();
+        uint256 ethSpent = destake.getETHSpentByUser(address(buyer));
+        detoken.approve(address(destake), detoken.balanceOf(buyer));
+        destake.withdrawEth();
+        uint256 actualBalance = buyer.balance;
+        assertEq(actualBalance, ethSpent);
+        assertEq(detoken.balanceOf(buyer), 0);
+
         vm.stopPrank();
     }
 
