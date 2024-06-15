@@ -19,14 +19,13 @@ contract DeStakeTest is Test {
     uint256 constant minTokenAmount = 100; //min amount of tokens to buy
     uint256 constant maxTokenAmount = 10000; //max amount of tokens to buy
     uint256 constant tokenHardCap = 30000; // total tokenCap
-    address public FeeAddress;
+    address public FeeAddress = makeAddr("FeeAddress");
     address buyer = makeAddr("buyer");
 
     function setUp() public {
         detoken = new DeToken("DeToken", "DET");
         uniMock = new UniswapV3FactoryMock();
 
-        FeeAddress = address(0x1);
         destake = new DeStake(
             PreSaleStartDate,
             PresaleEndDate,
@@ -55,6 +54,17 @@ contract DeStakeTest is Test {
 
     function setUniswapFactoryAddres()  public {
         destake.setUniswapFactoryAddres(address(uniMock));
+    }
+
+    function test_witdhrawFeesRevertsWhenNoFees()  public{
+        vm.expectRevert("No fees to withdraw");
+        destake.withdrawFees();
+    }
+
+        function test_witdhrawFeesSuccess()  public{
+        buyTokens();
+        destake.withdrawFees();
+        assert(FeeAddress.balance > 0);
     }
 
     function  test_setUniswapFactoryAddresRevertsWhenAddress0()  public {
