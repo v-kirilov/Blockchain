@@ -277,8 +277,9 @@ contract DeStake is Ownable, Test {
     /// @dev Can be executed only by the owner.
     function withdrawFees() external onlyOwner {
         require(totalFeesAcquired > 0, "No fees to withdraw");
+        uint256 feesToTransfer = totalFeesAcquired;
         totalFeesAcquired = 0;
-        (bool success,) = payable(protocolFeeAddress).call{value: totalFeesAcquired}("");
+        (bool success,) = payable(protocolFeeAddress).call{value: feesToTransfer}("");
         require(success, "Failed to withdraw fees");
     }
 
