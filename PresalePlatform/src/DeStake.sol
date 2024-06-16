@@ -445,7 +445,6 @@ contract DeStake is Ownable, Test {
     /// @dev Can be executed by anyone.
     function getClaimablePercentige() private view returns (uint256) {
         require(block.timestamp > presaleEndDate, "Presale is not over yet");
-        uint256 vestingEndDate = presaleEndDate + vestingDuration;
         uint256 percentige;
         if (block.timestamp > presaleEndDate + vestingDuration) {
             percentige = 100;
