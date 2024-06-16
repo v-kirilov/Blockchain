@@ -9,7 +9,7 @@ import {UniswapV3FactoryMock} from "../src/Mock/UniswapV3FactoryMokc.sol";
 contract DeStakeTest is Test {
     DeStake public destake;
     DeToken public detoken;
-    UniswapV3FactoryMock public uniMock ;
+    UniswapV3FactoryMock public uniMock;
 
     uint256 constant PreSaleStartDate = 10;
     uint256 constant ETHPricePerToken = 1e15; // 0.001 ETH per token
@@ -21,6 +21,17 @@ contract DeStakeTest is Test {
     uint256 constant tokenHardCap = 30000; // total tokenCap
     address public FeeAddress = makeAddr("FeeAddress");
     address buyer = makeAddr("buyer");
+
+    event TokensPurchased(address indexed buyer, uint256 amount);
+    event TokensClaiemd(address indexed buyer, uint256 amount);
+    event PresaleEnded();
+    event PresaleStarted();
+    event ETHWithdrawn(address indexed user, uint256 amount);
+    event PresaleDurationIncreased(uint256 amount);
+    event TokenPriceUpdated(uint256 pricePerToken);
+    event HardCapIncreased(uint256 newHardCapAmount);
+    event UserIsBlackListed(address indexed user);
+    event UserIsWhiteListed(address indexed user);
 
     function setUp() public {
         detoken = new DeToken("DeToken", "DET");
@@ -52,31 +63,86 @@ contract DeStakeTest is Test {
         vm.stopPrank();
     }
 
-    function setUniswapFactoryAddres()  public {
+    function setUniswapFactoryAddres() public {
         destake.setUniswapFactoryAddres(address(uniMock));
     }
 
-    function test_witdhrawFeesRevertsWhenNoFees()  public{
+    function test_witdhrawFeesRevertsWhenNoFees() public {
         vm.expectRevert("No fees to withdraw");
         destake.withdrawFees();
     }
 
-        function test_witdhrawFeesSuccess()  public{
+    function test_witdhrawFeesSuccess() public {
         buyTokens();
         destake.withdrawFees();
         assert(FeeAddress.balance > 0);
     }
 
-    function  test_setUniswapFactoryAddresRevertsWhenAddress0()  public {
+    function test_IncreasePresaleDurationReverts() public {
+        vm.expectRevert(DeStake.PresaleNotStarted.selector);
+        destake.increasePresaleDuration(0);
+    }
+
+    function test_IncreasePresaleDurationRevertWhenDurationIsZero() public {
+        vm.expectRevert("Increase duration must be greater than 0");
+        vm.warp(100);
+        destake.increasePresaleDuration(0);
+    }
+
+    function test_IncreasePresaleDurationSuccess() public {
+        vm.warp(100);
+        vm.expectEmit();
+        emit PresaleDurationIncreased(100);
+        destake.increasePresaleDuration(100);
+        assertEq(destake.presaleEndDate(), 1100);
+    }
+
+    function test_blackListRevertsWhenAddressZero() public {
+        vm.expectRevert("Invalid address");
+        destake.blackList(address(0));
+    }
+
+    function test_BlackListSuccess() public {
+        vm.expectEmit();
+        emit UserIsBlackListed(address(buyer));
+        destake.blackList(buyer);
+        assertEq(destake.blackListedUsers(buyer), true);
+    }
+
+    function test_blackListRevertsWhenSameAddressIsGiven() public {
+        destake.blackList(buyer);
+        vm.expectRevert("User is already blacklisted");
+        destake.blackList(buyer);
+    }
+
+    
+    function test_whiteListRevertsWhenAddressZero() public {
+        vm.expectRevert("Invalid address");
+        destake.whiteList(address(0));
+    }
+
+    function test_whiteListSuccess() public {
+        destake.blackList(buyer);
+        vm.expectEmit();
+        emit UserIsWhiteListed(address(buyer));
+        destake.whiteList(buyer);
+        assertEq(destake.blackListedUsers(buyer), false);
+    }
+        
+    function test_whiteListRevertsWhenAddressIsNotBlacklisted() public {
+        vm.expectRevert("User is not blacklisted");
+        destake.whiteList(address(buyer));
+    }
+
+    function test_setUniswapFactoryAddresRevertsWhenAddress0() public {
         vm.expectRevert("Invalid address");
         destake.setUniswapFactoryAddres(address(0));
     }
 
-        function  test_setUniswapFactoryAddresSuccess()  public {
-         destake.setUniswapFactoryAddres(address(uniMock));
-            assertEq(address(destake.factory()), address(uniMock));
+    function test_setUniswapFactoryAddresSuccess() public {
+        destake.setUniswapFactoryAddres(address(uniMock));
+        assertEq(address(destake.factory()), address(uniMock));
     }
-
 
     function test_buyTokensSuccess() public {
         uint256 ethAmount = 1 ether;
@@ -166,7 +232,7 @@ contract DeStakeTest is Test {
         vm.stopPrank();
     }
 
-      function test_claimTokensRevertsWhenNoTokenBought() public {
+    function test_claimTokensRevertsWhenNoTokenBought() public {
         vm.warp(1005);
         vm.roll(50);
 
@@ -189,7 +255,7 @@ contract DeStakeTest is Test {
         vm.stopPrank();
     }
 
-        function test_ClaimTokensSuccess() public {
+    function test_ClaimTokensSuccess() public {
         buyTokens();
         vm.warp(3001);
         vm.roll(15);
@@ -201,7 +267,7 @@ contract DeStakeTest is Test {
         vm.stopPrank();
     }
 
-            function test_ClaimHalfTokensAtMidPointOfVesting() public {
+    function test_ClaimHalfTokensAtMidPointOfVesting() public {
         buyTokens();
         vm.warp(2000);
         vm.roll(15);
@@ -211,12 +277,12 @@ contract DeStakeTest is Test {
         console.log(actualTokens);
         uint256 tokensBought = destake.getTokensBoughtByUser(address(buyer));
         console.log(tokensBought);
-        assertEq(actualTokens, tokensBought/2);
+        assertEq(actualTokens, tokensBought / 2);
         vm.stopPrank();
     }
 
     //! Test also when liquidity phase is active!!!
-    function test_withdrawEthRevertsWhenNoETHisSpend()  public {
+    function test_withdrawEthRevertsWhenNoETHisSpend() public {
         vm.startPrank(buyer);
         vm.expectRevert("No ETH to withdraw");
         destake.withdrawEth();
@@ -231,12 +297,12 @@ contract DeStakeTest is Test {
         uint256 ethSpent = destake.getETHSpentByUser(address(buyer));
         destake.withdrawEth();
         uint256 actualBalance = buyer.balance;
-       assertEq(actualBalance,ethSpent);
+        assertEq(actualBalance, ethSpent);
         vm.stopPrank();
     }
 
-        function test_withdrawSuccessAndClaimedTokensAreReturned() public {
-            //!
+    function test_withdrawSuccessAndClaimedTokensAreReturned() public {
+        //!
         buyTokens();
         vm.warp(2000);
         vm.roll(10);
