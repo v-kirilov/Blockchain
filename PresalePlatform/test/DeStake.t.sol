@@ -115,7 +115,6 @@ contract DeStakeTest is Test {
         destake.blackList(buyer);
     }
 
-    
     function test_whiteListRevertsWhenAddressZero() public {
         vm.expectRevert("Invalid address");
         destake.whiteList(address(0));
@@ -128,10 +127,38 @@ contract DeStakeTest is Test {
         destake.whiteList(buyer);
         assertEq(destake.blackListedUsers(buyer), false);
     }
-        
+
     function test_whiteListRevertsWhenAddressIsNotBlacklisted() public {
         vm.expectRevert("User is not blacklisted");
         destake.whiteList(address(buyer));
+    }
+
+    function test_increaseVestingDurationReverts() public {
+        vm.expectRevert("Increase vesting duration must be greater than 0");
+        destake.increaseVestingDuration(0);
+    }
+
+    function test_increaseVestingDurationSuccess() public {
+        uint256 duration = destake.vestingDuration();
+        destake.increaseVestingDuration(100);
+        uint256 newDuration = destake.vestingDuration();
+        assertEq(newDuration, duration + 100);
+    }
+
+    function test_updateEthPricePerTokenReverts() public {
+        vm.expectRevert("Price per token must be greater than 0");
+        destake.updateEthPricePerToken(0);
+    }
+
+    function test_updateEthPricePerTokenSuccess() public {
+        uint256 newPrice =1;
+        vm.expectEmit();
+        emit TokenPriceUpdated(newPrice);
+        uint256 price = destake.ethPricePerToken();
+        destake.updateEthPricePerToken(newPrice);
+        uint256 actualPrice = destake.ethPricePerToken();
+        assertEq(actualPrice, 1);
+        assert(price != actualPrice);
     }
 
     function test_setUniswapFactoryAddresRevertsWhenAddress0() public {
