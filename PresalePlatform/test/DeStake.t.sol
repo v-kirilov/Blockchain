@@ -21,6 +21,7 @@ contract DeStakeTest is Test {
     uint256 constant tokenHardCap = 30000; // total tokenCap
     address public FeeAddress = makeAddr("FeeAddress");
     address buyer = makeAddr("buyer");
+    address uniswapPairAddr = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
     event TokensPurchased(address indexed buyer, uint256 amount);
     event TokensClaiemd(address indexed buyer, uint256 amount);
@@ -151,7 +152,7 @@ contract DeStakeTest is Test {
     }
 
     function test_updateEthPricePerTokenSuccess() public {
-        uint256 newPrice =1;
+        uint256 newPrice = 1;
         vm.expectEmit();
         emit TokenPriceUpdated(newPrice);
         uint256 price = destake.ethPricePerToken();
@@ -371,6 +372,34 @@ contract DeStakeTest is Test {
         assertEq(hasEnded, true);
     }
 
+    function test_increaseHardCapRevertsPresaleNotStarted() public {
+        vm.expectRevert(DeStake.PresaleNotStarted.selector);
+        destake.increaseHardCap(0);
+    }
+
+    function test_increaseHardCapRevertsPresaleEnded() public {
+        vm.warp(100);
+        vm.roll(5);
+        bool hasStarted = destake.hasPresaleStarted();
+        console.log(hasStarted);
+
+        vm.warp(10000);
+        vm.roll(50);
+        bool hasEnded = destake.hasPresaleEnded();
+        console.log(hasEnded);
+        vm.expectRevert(DeStake.PresaleOver.selector);
+        destake.increaseHardCap(0);
+    }
+
+    function test_increaseHardCapSuccess() public {
+        vm.warp(100);
+        vm.roll(5);
+        destake.increaseHardCap(10000);
+        uint256 newHardCap = destake.tokenHardCap();
+        assertEq(newHardCap, 40000);
+        //  uint256 constant tokenHardCap = 30000; // total tokenCap
+    }
+
     function calculateTokensIncludingFees(uint256 ethAmount, uint256 protocolFees, uint256 pricePerToken)
         public
         pure
@@ -378,5 +407,33 @@ contract DeStakeTest is Test {
     {
         uint256 buyAmount = (ethAmount - protocolFees * ethAmount / 100) / pricePerToken;
         return buyAmount;
+    }
+
+    function test_buyTokensRevertsCauseBuyerIsBlacklisted() public {
+        uint256 ethAmount = 1 ether;
+        vm.warp(100);
+        vm.roll(5);
+        destake.blackList(buyer);
+        vm.startPrank(buyer);
+        vm.expectRevert(DeStake.UserBlackListed.selector);
+        destake.buyTokens{value: ethAmount}();
+        vm.stopPrank();
+    }
+
+    function test_checkTokenLiqPhaseAndOtherExternalFunctions() public {
+        uint256 ethAmount = 1 ether;
+        vm.warp(100);
+        vm.roll(5);
+        vm.startPrank(buyer);
+        destake.buyTokens{value: ethAmount}();
+        vm.stopPrank();
+        bool checkTokenLiquidityPhase = destake.checkTokenLiquidityPhase();
+        uint256 tokensSold = destake.tokensSold();
+        uint256 tokenPrice = destake.getTokenPrice();
+        uint256 ethRaised = destake.amountETHRaised();
+        assertEq(tokenPrice, 1000000000000000);
+        assertEq(ethRaised, 970000000000000000);
+        assertEq(tokensSold, 970);
+        assertEq(checkTokenLiquidityPhase, false);
     }
 }
