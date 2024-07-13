@@ -1,4 +1,4 @@
-![alt text](https://unsplash.com/photos/a-red-dollar-sign-sitting-next-to-a-green-arrow-Whh3kzHuGkk?auto=compress,format)
+![1](https://github.com/user-attachments/assets/0dc26a6a-c75c-41ab-b7e6-0eb6c501dec5)
 # **DeStake** Presale Platform
 
 Welcome to **DeStake**! This platform is built using Solidity, designed to facilitate secure and transparent token presales. DeStake allows users to participate in early-stage token offerings, with a unique vesting period feature that ensures tokens are gradually released over time, preventing immediate market dumping.
