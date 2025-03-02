@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@uniswap/sdk": "^3.0.3",
+    "@uniswap/v3-sdk": "^3.24.1"
+  }
+}
