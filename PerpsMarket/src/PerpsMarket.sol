@@ -44,6 +44,7 @@ contract PerpsMarket is Ownable {
     mapping(address user => bool isBlacklisted) public blackListedUsers;
     //Need it to have it in enumerable set, only 32 byte variables are allowed in the set
     mapping(address user => Position) public positions;
+    mapping(address user => uint256 profit) public positionProfit;
 
     uint256 public lastUpdatedTimestamp;
 
@@ -59,9 +60,39 @@ contract PerpsMarket is Ownable {
 
     constructor() Ownable(msg.sender) {}
 
-    function updatePositions() public {
+    function updatePositions(uint256 amount) public {
         lastUpdatedTimestamp = block.timestamp;
         //Update positions
+    }
+
+    function closePosition() public returns (int256) {
+        if (!usersWithPositions.contains(msg.sender)) {
+            revert PositionNotExisting();
+        }
+        //get price
+        int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
+
+        //get position
+        Position memory position = positions[msg.sender];
+        //calculate profit
+        int256 profit = calculateProfit(position, uint256(ethPrice));
+
+        //Remove user from positions
+        usersWithPositions.remove(msg.sender);
+
+        //Save profit in positionProfit mapping
+        if (profit > 0) {
+            positionProfit[msg.sender] = uint256(profit);
+        }
+    }
+
+    function withdrawProfit() public {
+        uint256 profit = positionProfit[msg.sender];
+        require(profit > 0, "No profit to withdraw");
+        positionProfit[msg.sender] = 0;
+
+        (bool success,) = msg.sender.call{value: uint256(profit)}("");
+        require(success, "Transfer failed.");
     }
 
     function openPosition(uint256 amount, PositionType positionType) public payable notBLackListed {
@@ -87,6 +118,25 @@ contract PerpsMarket is Ownable {
         positions[msg.sender] = newPosition;
         usersWithPositions.add(msg.sender);
     }
+
+    function calculateProfit(Position memory position, uint256 ethPrice) private pure returns (int256) {
+        uint256 positionEntryPrice = position.positionEntryPrice;
+        int256 profitInUsd = 0;
+        if (position.positionType == PositionType.LONG) {
+            if (positionEntryPrice > ethPrice) {
+                profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+            } else {
+                profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
+            }
+        }
+        //short
+        if (positionEntryPrice < ethPrice) {
+            profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
+        } else {
+            profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+        }
+    }
+    //2200_00000000 - 2000_00000000 = 200_00000000 / 1e8 = 200 *3 = 600
 
     function calculatePositionLeverage(uint256 positionAmount, uint256 deposited) private view returns (uint256) {
         uint256 leverageBips = (positionAmount * 1000) / deposited;
