@@ -39,14 +39,19 @@ contract PerpsMarket is Ownable {
     }
 
     VPriceFeed public PriceFeed;
-    uint32 private MaxBipsLeverage = 3000;
+    uint32 private constant MAX_BIPS_LEVERAGE = 30_000; // 3x
+    uint32 private constant TO_BIPS = 10_000;
+    uint32 public Fee = 2000; // 2%
+
+    uint256 private accumulatedFees;
+    uint256 public lastUpdatedTimestamp;
+    address private feeCollector;
 
     mapping(address user => bool isBlacklisted) public blackListedUsers;
     //Need it to have it in enumerable set, only 32 byte variables are allowed in the set
     mapping(address user => Position) public positions;
     mapping(address user => uint256 profit) public positionProfit;
 
-    uint256 public lastUpdatedTimestamp;
 
     ///-///-///-///
     // Modifiers
@@ -62,10 +67,10 @@ contract PerpsMarket is Ownable {
 
     function updatePositions(uint256 amount) public {
         lastUpdatedTimestamp = block.timestamp;
-        //Update positions
+        //Update positions, how can we do that , iterate all positions???
     }
 
-    function closePosition() public returns (int256) {
+    function closePosition() public {
         if (!usersWithPositions.contains(msg.sender)) {
             revert PositionNotExisting();
         }
@@ -75,8 +80,12 @@ contract PerpsMarket is Ownable {
         //get position
         Position memory position = positions[msg.sender];
         //calculate profit
-        int256 profit = calculateProfit(position, uint256(ethPrice));
-
+        int256 profitBeforeFees = calculateProfit(position, uint256(ethPrice));
+        
+        //calculate fees
+        uint256 fees = calculateFeesForPosition(position);
+        uint256 profit = uint256(profitBeforeFees) - fees;
+        accumulatedFees += fees;
         //Remove user from positions
         usersWithPositions.remove(msg.sender);
 
@@ -86,7 +95,7 @@ contract PerpsMarket is Ownable {
         }
     }
 
-    function withdrawProfit() public {
+    function withdrawProfit() external {
         uint256 profit = positionProfit[msg.sender];
         require(profit > 0, "No profit to withdraw");
         positionProfit[msg.sender] = 0;
@@ -95,7 +104,7 @@ contract PerpsMarket is Ownable {
         require(success, "Transfer failed.");
     }
 
-    function openPosition(uint256 amount, PositionType positionType) public payable notBLackListed {
+    function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed {
         if (msg.value == 0) {
             revert NoETHProvided();
         }
@@ -119,6 +128,14 @@ contract PerpsMarket is Ownable {
         usersWithPositions.add(msg.sender);
     }
 
+    function calculatePositionLeverage(uint256 positionAmount, uint256 deposited) private pure returns (uint256) {
+        uint256 leverageBips = (positionAmount * TO_BIPS) / deposited;
+        if (leverageBips > MAX_BIPS_LEVERAGE) {
+            revert LeverageExceded();
+        }
+        return leverageBips;
+    }
+
     function calculateProfit(Position memory position, uint256 ethPrice) private pure returns (int256) {
         uint256 positionEntryPrice = position.positionEntryPrice;
         int256 profitInUsd = 0;
@@ -138,12 +155,8 @@ contract PerpsMarket is Ownable {
     }
     //2200_00000000 - 2000_00000000 = 200_00000000 / 1e8 = 200 *3 = 600
 
-    function calculatePositionLeverage(uint256 positionAmount, uint256 deposited) private view returns (uint256) {
-        uint256 leverageBips = (positionAmount * 1000) / deposited;
-        if (leverageBips > MaxBipsLeverage) {
-            revert LeverageExceded();
-        }
-        return leverageBips;
+    function calculateFeesForPosition(Position memory position) private view returns (uint256) {
+        return (position.positionAmount * Fee) / TO_BIPS;
     }
 
     function calculatePositionLiquidationPrice(
@@ -152,8 +165,8 @@ contract PerpsMarket is Ownable {
         PositionType positionType
     ) private pure returns (uint256) {
         if (positionType == PositionType.LONG) {
-            return positionEntryPrice - ((1000 * positionEntryPrice) / positionLeverage);
+            return positionEntryPrice - ((TO_BIPS * positionEntryPrice) / positionLeverage);
         }
-        return positionEntryPrice + ((1000 * positionEntryPrice) / positionLeverage);
+        return positionEntryPrice + ((TO_BIPS * positionEntryPrice) / positionLeverage);
     }
 }
