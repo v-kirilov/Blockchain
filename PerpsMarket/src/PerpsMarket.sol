@@ -65,9 +65,33 @@ contract PerpsMarket is Ownable {
 
     constructor() Ownable(msg.sender) {}
 
-    function updatePositions(uint256 amount) public {
+    function updatePositions(uint256 amount, PositionType positionType) public {
         lastUpdatedTimestamp = block.timestamp;
-        //Update positions, how can we do that , iterate all positions???
+        //Update positions
+
+        //Get position
+        Position memory position = positions[msg.sender];
+
+        if (position.positionType != positionType) {
+            revert NotPossible();
+        }
+
+        //Get price
+        int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
+
+        if (positionType == PositionType.LONG) {
+            uint256 newAmount = position.amountDeposited + amount;
+            position.amountDeposited += newAmount;
+            position.positionLeverage = calculatePositionLeverage(newAmount, position.amountDeposited);
+            int256 updatedPositionEntryPrice = calculateUpdatedPositionEntryPrice(
+                position.amountDeposited,
+                int256(position.positionEntryPrice),
+                newAmount,
+                ethPrice
+            );
+            position.positionEntryPrice = uint256(updatedPositionEntryPrice);
+            // update  liquidation price , 
+        }
     }
 
     function closePosition() public {
@@ -81,7 +105,7 @@ contract PerpsMarket is Ownable {
         Position memory position = positions[msg.sender];
         //calculate profit
         int256 profitBeforeFees = calculateProfit(position, uint256(ethPrice));
-        
+
         //calculate fees
         uint256 fees = calculateFeesForPosition(position);
         uint256 profit = uint256(profitBeforeFees) - fees;
@@ -168,5 +192,9 @@ contract PerpsMarket is Ownable {
             return positionEntryPrice - ((TO_BIPS * positionEntryPrice) / positionLeverage);
         }
         return positionEntryPrice + ((TO_BIPS * positionEntryPrice) / positionLeverage);
+    }
+
+    function calculateUpdatedPositionEntryPrice(uint256 oldAmout, int256 oldPrice, uint256 newAmount, int256 newPrice) private pure returns (int256) {
+        return ((int256(oldAmout) * oldPrice) + (int256(newAmount) * newPrice)) / int256(oldAmout + newAmount);
     }
 }
