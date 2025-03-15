@@ -52,7 +52,6 @@ contract PerpsMarket is Ownable {
     mapping(address user => Position) public positions;
     mapping(address user => uint256 profit) public positionProfit;
 
-
     ///-///-///-///
     // Modifiers
     ///-///-///-///
@@ -65,7 +64,7 @@ contract PerpsMarket is Ownable {
 
     constructor() Ownable(msg.sender) {}
 
-    function updatePositions(uint256 amount, PositionType positionType) public {
+    function updatePositions(uint256 deposit, PositionType positionType) public {
         lastUpdatedTimestamp = block.timestamp;
         //Update positions
 
@@ -79,20 +78,27 @@ contract PerpsMarket is Ownable {
         //Get price
         int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
 
-        if (positionType == PositionType.LONG) {
-            uint256 newAmount = position.amountDeposited + amount;
-            position.amountDeposited += newAmount;
-            position.positionLeverage = calculatePositionLeverage(newAmount, position.amountDeposited);
-            int256 updatedPositionEntryPrice = calculateUpdatedPositionEntryPrice(
-                position.amountDeposited,
-                int256(position.positionEntryPrice),
-                newAmount,
-                ethPrice
-            );
-            position.positionEntryPrice = uint256(updatedPositionEntryPrice);
-            // update  liquidation price , 
-        }
+        uint256 newAmount = position.amountDeposited + deposit;
+        position.amountDeposited += newAmount;
+        position.positionLeverage = calculatePositionLeverage(newAmount, position.amountDeposited);
+        int256 updatedPositionEntryPrice = calculateUpdatedPositionEntryPrice(
+            position.amountDeposited, int256(position.positionEntryPrice), newAmount, ethPrice
+        );
+        uint256 oldPositionEntryPrice = position.positionEntryPrice;
+        position.positionEntryPrice = uint256(updatedPositionEntryPrice);
+        uint256 newLiquidationPrice;
+
+        // update  liquidation price
+        newLiquidationPrice =
+            calculatePositionLiquidationPrice(oldPositionEntryPrice, position.positionLeverage, positionType);
+
+        position.positionLiquidationPrice = newLiquidationPrice;
+
+        //Save updated position
+        positions[msg.sender] = position;
     }
+
+    //! function liquidatePosition() public {}
 
     function closePosition() public {
         if (!usersWithPositions.contains(msg.sender)) {
@@ -153,6 +159,10 @@ contract PerpsMarket is Ownable {
     }
 
     function calculatePositionLeverage(uint256 positionAmount, uint256 deposited) private pure returns (uint256) {
+        if (deposited >= positionAmount) {
+            //no leverage
+            return 0;
+        }
         uint256 leverageBips = (positionAmount * TO_BIPS) / deposited;
         if (leverageBips > MAX_BIPS_LEVERAGE) {
             revert LeverageExceded();
@@ -160,9 +170,8 @@ contract PerpsMarket is Ownable {
         return leverageBips;
     }
 
-    function calculateProfit(Position memory position, uint256 ethPrice) private pure returns (int256) {
+    function calculateProfit(Position memory position, uint256 ethPrice) private pure returns (int256 profitInUsd) {
         uint256 positionEntryPrice = position.positionEntryPrice;
-        int256 profitInUsd = 0;
         if (position.positionType == PositionType.LONG) {
             if (positionEntryPrice > ethPrice) {
                 profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
@@ -177,7 +186,6 @@ contract PerpsMarket is Ownable {
             profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
         }
     }
-    //2200_00000000 - 2000_00000000 = 200_00000000 / 1e8 = 200 *3 = 600
 
     function calculateFeesForPosition(Position memory position) private view returns (uint256) {
         return (position.positionAmount * Fee) / TO_BIPS;
@@ -188,13 +196,30 @@ contract PerpsMarket is Ownable {
         uint256 positionLeverage,
         PositionType positionType
     ) private pure returns (uint256) {
+        if (positionLeverage == 0) {
+            if (positionType == PositionType.LONG) {
+                return 0;
+            }
+            return type(uint256).max;
+        }
+        if (
+            positionType == PositionType.LONG && (TO_BIPS * positionEntryPrice) / positionLeverage >= positionEntryPrice
+        ) {
+            return 0;
+        }
         if (positionType == PositionType.LONG) {
             return positionEntryPrice - ((TO_BIPS * positionEntryPrice) / positionLeverage);
         }
         return positionEntryPrice + ((TO_BIPS * positionEntryPrice) / positionLeverage);
     }
 
-    function calculateUpdatedPositionEntryPrice(uint256 oldAmout, int256 oldPrice, uint256 newAmount, int256 newPrice) private pure returns (int256) {
+    function calculateUpdatedPositionEntryPrice(uint256 oldAmout, int256 oldPrice, uint256 newAmount, int256 newPrice)
+        private
+        pure
+        returns (int256)
+    {
         return ((int256(oldAmout) * oldPrice) + (int256(newAmount) * newPrice)) / int256(oldAmout + newAmount);
     }
 }
+
+//! Liquidate position!
