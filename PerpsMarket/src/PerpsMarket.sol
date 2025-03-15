@@ -98,7 +98,26 @@ contract PerpsMarket is Ownable {
         positions[msg.sender] = position;
     }
 
-    //! function liquidatePosition() public {}
+    function liquidatePosition(address positionOwner) public {
+        //Get position
+        Position memory position = positions[positionOwner];
+        if (position.positionEntryPrice == 0) {
+            revert PositionNotExisting();
+        }
+        //check if position is liquideable
+        int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
+        if (position.positionType == PositionType.LONG && uint256(ethPrice) > position.positionLiquidationPrice) {
+            revert NotPossible();
+        }else if (position.positionType == PositionType.SHORT && uint256(ethPrice) < position.positionLiquidationPrice) {
+            revert NotPossible();
+        }
+
+        //delete position
+        usersWithPositions.remove(positionOwner);
+        // null the position
+        delete positions[positionOwner];
+        //calculate fees
+    }
 
     function closePosition() public {
         if (!usersWithPositions.contains(msg.sender)) {
@@ -121,7 +140,7 @@ contract PerpsMarket is Ownable {
 
         //Save profit in positionProfit mapping
         if (profit > 0) {
-            positionProfit[msg.sender] = uint256(profit);
+            positionProfit[msg.sender] += uint256(profit);
         }
     }
 
@@ -220,6 +239,13 @@ contract PerpsMarket is Ownable {
     {
         return ((int256(oldAmout) * oldPrice) + (int256(newAmount) * newPrice)) / int256(oldAmout + newAmount);
     }
+
+    function getPosition(address positionAddress) external view returns (Position memory) {
+        return positions[positionAddress];
+    }
 }
 
 //! Liquidate position!
+//! update all positions , check if they are eligible for liquidation
+//! calculate fees when updating position
+//! caclulate fees when liquidating position
