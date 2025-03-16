@@ -41,7 +41,9 @@ contract PerpsMarket is Ownable {
     VPriceFeed public PriceFeed;
     uint32 private constant MAX_BIPS_LEVERAGE = 30_000; // 3x
     uint32 private constant TO_BIPS = 10_000;
-    uint32 public Fee = 2000; // 2%
+    uint32 public Fee = 1000; // 1%
+    uint64 public constant MIN_POSITION_AMOUNT = 0.01 ether;      
+ 
 
     uint256 private accumulatedFees;
     uint256 public lastUpdatedTimestamp;
@@ -108,9 +110,13 @@ contract PerpsMarket is Ownable {
         int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
         if (position.positionType == PositionType.LONG && uint256(ethPrice) > position.positionLiquidationPrice) {
             revert NotPossible();
-        }else if (position.positionType == PositionType.SHORT && uint256(ethPrice) < position.positionLiquidationPrice) {
+        } else if (position.positionType == PositionType.SHORT && uint256(ethPrice) < position.positionLiquidationPrice)
+        {
             revert NotPossible();
         }
+        // Give half of fee to liquidator //! fix this
+        uint256 fees = calculateFeesForPosition(position.positionAmount);
+        positionProfit[msg.sender] += uint256(fees / 2);
 
         //delete position
         usersWithPositions.remove(positionOwner);
@@ -132,7 +138,7 @@ contract PerpsMarket is Ownable {
         int256 profitBeforeFees = calculateProfit(position, uint256(ethPrice));
 
         //calculate fees
-        uint256 fees = calculateFeesForPosition(position);
+        uint256 fees = calculateFeesForPosition(position.positionAmount);
         uint256 profit = uint256(profitBeforeFees) - fees;
         accumulatedFees += fees;
         //Remove user from positions
@@ -157,14 +163,19 @@ contract PerpsMarket is Ownable {
         if (msg.value == 0) {
             revert NoETHProvided();
         }
+        // calculate fees
+        uint256 fees = calculateFeesForPosition(amount);
+        accumulatedFees += fees;
+        uint256 amountDepositedMinusFees = msg.value - fees;
+
         // Check position size
         int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
-        uint256 leverage = calculatePositionLeverage(amount, msg.value);
+        uint256 leverage = calculatePositionLeverage(amount, amountDepositedMinusFees);
         uint256 positionLiquidationPrice = calculatePositionLiquidationPrice(uint256(ethPrice), leverage, positionType);
 
         Position memory newPosition = Position({
             user: msg.sender,
-            amountDeposited: msg.value,
+            amountDeposited: amountDepositedMinusFees,
             positionAmount: amount,
             positionType: positionType,
             positionEntryPrice: uint256(ethPrice),
@@ -205,9 +216,9 @@ contract PerpsMarket is Ownable {
             profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
         }
     }
-
-    function calculateFeesForPosition(Position memory position) private view returns (uint256) {
-        return (position.positionAmount * Fee) / TO_BIPS;
+    
+    function calculateFeesForPosition(uint256 positionAmount) private view returns (uint256) {
+        return (positionAmount * Fee) / TO_BIPS;
     }
 
     function calculatePositionLiquidationPrice(
