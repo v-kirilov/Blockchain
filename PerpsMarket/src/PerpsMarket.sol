@@ -14,6 +14,7 @@ contract PerpsMarket is Ownable {
     error NoETHProvided();
     error LeverageExceded();
     error PositionNotExisting();
+    error PositionAmountIsTooSmall();
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -162,6 +163,9 @@ contract PerpsMarket is Ownable {
     function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed {
         if (msg.value == 0) {
             revert NoETHProvided();
+        }
+        if (amount < MIN_POSITION_AMOUNT) {
+            revert PositionAmountIsTooSmall();
         }
         // calculate fees
         uint256 fees = calculateFeesForPosition(amount);
