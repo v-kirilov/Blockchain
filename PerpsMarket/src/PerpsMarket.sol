@@ -48,6 +48,8 @@ contract PerpsMarket is Ownable {
 
     uint256 private accumulatedFees;
     uint256 public lastUpdatedTimestamp;
+    uint256 private accumulatedLongPositionAmount;
+    uint256 private accumulatedShortPositionAmount;
     address private feeCollector;
 
     mapping(address user => bool isBlacklisted) public blackListedUsers;
@@ -115,7 +117,7 @@ contract PerpsMarket is Ownable {
         {
             revert NotPossible();
         }
-        // Give half of fee to liquidator //! fix this
+        // Give half of fee to liquidator
         uint256 fees = calculateFeesForPosition(position.positionAmount);
         positionProfit[msg.sender] += uint256(fees / 2);
 
@@ -123,7 +125,9 @@ contract PerpsMarket is Ownable {
         usersWithPositions.remove(positionOwner);
         // null the position
         delete positions[positionOwner];
-        //calculate fees
+
+         //Reduce accumulated position
+        positionType == PositionType.LONG ? accumulatedLongPositionAmount -= amount : accumulatedShortPositionAmount -= amount;
     }
 
     function closePosition() public {
@@ -149,7 +153,13 @@ contract PerpsMarket is Ownable {
         if (profit > 0) {
             positionProfit[msg.sender] += uint256(profit);
         }
+
+        //Reduce accumulated position
+        positionType == PositionType.LONG ? accumulatedLongPositionAmount -= amount : accumulatedShortPositionAmount -= amount;
+
     }
+
+
 
     function withdrawProfit() external {
         uint256 profit = positionProfit[msg.sender];
@@ -186,6 +196,9 @@ contract PerpsMarket is Ownable {
             positionLiquidationPrice: positionLiquidationPrice,
             positionLeverage: leverage
         });
+
+        //Save accumulated position amount
+        positionType == PositionType.LONG ? accumulatedLongPositionAmount += amount : accumulatedShortPositionAmount += amount;
 
         //Save position
         positions[msg.sender] = newPosition;
@@ -258,9 +271,16 @@ contract PerpsMarket is Ownable {
     function getPosition(address positionAddress) external view returns (Position memory) {
         return positions[positionAddress];
     }
+
+    /// @notice Returns the users with positions
+    /// @dev This is an expensive function , can use up too much gas to fit a block
+    /// @return	All users with positions
+    function getUsersWithPositions() external view returns (address[] memory) {
+        return usersWithPositions.values();
+    }
 }
 
-//! Liquidate position!
+
 //! update all positions , check if they are eligible for liquidation
 //! calculate fees when updating position
 //! caclulate fees when liquidating position
