@@ -18,6 +18,7 @@ contract PPCampaign is AccessControl {
     error NothingToClaim();
     error ZeroDuration();
     error IncorrectCampaignStart();
+    error NoSuchParticipant();
 
     ///-///-///-///
     // Constants
@@ -127,5 +128,12 @@ contract PPCampaign is AccessControl {
 
     function getCampaignStartDate() external view returns (uint256) {
         return campaignStartDate;
+    }
+
+    function getParticipantInfo(address participant) public view returns (address userAdress, uint256 prizePoints) {
+        if (participants[participant].userAdress == address(0)) {
+            revert NoSuchParticipant();
+        }
+        return (participants[participant].userAdress, participants[participant].prizePoints);
     }
 }
