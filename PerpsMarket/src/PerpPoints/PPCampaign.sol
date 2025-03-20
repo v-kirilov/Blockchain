@@ -14,6 +14,8 @@ contract PPCampaign is AccessControl {
     error Unauthorized();
     error ZeroAddress();
     error MaxCamapignDurationExceeded();
+    error CampaignStillActive();
+    error NothingToClaim();
 
     ///-///-///-///
     // Constants
@@ -33,13 +35,13 @@ contract PPCampaign is AccessControl {
     uint256 public firstPrizeAmount;
     uint256 public secontPrizeAmount;
     uint256 public thirdPrizeAmount;
+    bool public hasCampaignFinished;
 
     //When participating in the campaign a user gains points based on his trading, if it's succesfull he gets more points.
     //At the end of a campaign the top 3 users with the most points will get a prize. The prize is a token that is set at the start of the campaign.
     //This token can be used to reduce his trading fees on the platform and other perks.
     struct Participant {
         address userAdress;
-        uint256 points;
         uint256 campaignId;
         uint256 prizePoints;
     }
@@ -83,8 +85,11 @@ contract PPCampaign is AccessControl {
 
     function claimPrize() external {
         Participant storage participant = participants[msg.sender];
-        require(participant.campaignId == block.timestamp, "You are not a participant in the current campaign");
-        require(participant.prizePoints > 0, "You have no prize points to claim");
+        if (!hasCampaignFinished) {
+            revert CampaignStillActive();
+        }
+        require(participant.prizePoints > 0, NothingToClaim());
+        participant.prizePoints = 0;
         IERC20(PrizeToken).safeTransfer(msg.sender, participant.prizePoints);
     }
 }
