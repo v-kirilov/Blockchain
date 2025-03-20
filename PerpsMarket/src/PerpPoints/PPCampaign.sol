@@ -16,6 +16,8 @@ contract PPCampaign is AccessControl {
     error MaxCamapignDurationExceeded();
     error CampaignStillActive();
     error NothingToClaim();
+    error ZeroDuration();
+    error IncorrectCampaignStart();
 
     ///-///-///-///
     // Constants
@@ -26,6 +28,7 @@ contract PPCampaign is AccessControl {
     // Immutables
     ///-///-///-///
     uint256 public immutable MAX_CAMPAIGN_DURATION = 30 days;
+    uint256 private immutable CAMPAIGN_ID;
     uint256 private immutable Duration;
     address private immutable PrizeToken;
 
@@ -35,6 +38,7 @@ contract PPCampaign is AccessControl {
     uint256 public firstPrizeAmount;
     uint256 public secontPrizeAmount;
     uint256 public thirdPrizeAmount;
+    uint256 public campaignStartDate;
     bool public hasCampaignFinished;
 
     //When participating in the campaign a user gains points based on his trading, if it's succesfull he gets more points.
@@ -42,16 +46,15 @@ contract PPCampaign is AccessControl {
     //This token can be used to reduce his trading fees on the platform and other perks.
     struct Participant {
         address userAdress;
-        uint256 campaignId;
         uint256 prizePoints;
     }
 
     //Points for each participant that has accumulated in the campaign
     mapping(address => Participant) public participants;
 
-    constructor(uint256 _duration, address _prizeToken, address _campaignAdmin) {
+    constructor(uint256 _duration, address _prizeToken, address _campaignAdmin,uint256 _campaignId, uint256 _campaignStartDate) {
         if (_duration == 0) {
-            revert("Duration cannot be 0");
+            revert ZeroDuration();
         }
         if (_duration > MAX_CAMPAIGN_DURATION) {
             revert MaxCamapignDurationExceeded();
@@ -61,9 +64,15 @@ contract PPCampaign is AccessControl {
             revert ZeroAddress();
         }
 
+        if (_campaignStartDate < block.timestamp) {
+            revert IncorrectCampaignStart();
+        }
+
         _grantRole(CAMPAIGN_ADMIN_ROLE, _campaignAdmin);
+        CAMPAIGN_ID = _campaignId;
         Duration = _duration;
         PrizeToken = _prizeToken;
+        campaignStartDate = _campaignStartDate;
     }
 
     /// @notice Restricts access to campaign admin
@@ -91,5 +100,32 @@ contract PPCampaign is AccessControl {
         require(participant.prizePoints > 0, NothingToClaim());
         participant.prizePoints = 0;
         IERC20(PrizeToken).safeTransfer(msg.sender, participant.prizePoints);
+    }
+
+    function upSertParticipant(address _userAdress,  uint256 _prizePoints) external onlyCampaignAdmin {
+        Participant memory participant = participants[_userAdress];
+        if (participant.userAdress == address(0)) {
+            participants[_userAdress] = Participant(_userAdress, _prizePoints);
+            return;
+        }else {
+            participant.prizePoints += _prizePoints;
+            participants[_userAdress] = participant;
+        }
+    }
+
+    function endCampaign() external onlyCampaignAdmin {
+        hasCampaignFinished = true;
+    }
+
+    function getDuration() external view returns (uint256) {
+        return Duration;
+    }
+
+    function getEndDate() external view returns (uint256) {
+        return campaignStartDate + Duration;
+    }
+
+    function getCampaignStartDate() external view returns (uint256) {
+        return campaignStartDate;
     }
 }
