@@ -15,6 +15,8 @@ contract PerpsMarket is Ownable {
     error LeverageExceded();
     error PositionNotExisting();
     error PositionAmountIsTooSmall();
+    error NoProfit();
+    error TransferFailed();
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -127,7 +129,7 @@ contract PerpsMarket is Ownable {
         delete positions[positionOwner];
 
          //Reduce accumulated position
-        positionType == PositionType.LONG ? accumulatedLongPositionAmount -= amount : accumulatedShortPositionAmount -= amount;
+        position.positionType == PositionType.LONG ? accumulatedLongPositionAmount -= amount : accumulatedShortPositionAmount -= amount;
     }
 
     function closePosition() public {
@@ -153,9 +155,15 @@ contract PerpsMarket is Ownable {
         if (profit > 0) {
             positionProfit[msg.sender] += uint256(profit);
         }
+        position.positionAmount = 0;
+        position.amountDeposited = 0;
+        position.positionEntryPrice = 0;
+        position.positionLiquidationPrice = 0;
+        position.positionLeverage = 0;
+        positions[msg.sender] = position;
 
         //Reduce accumulated position
-        positionType == PositionType.LONG ? accumulatedLongPositionAmount -= amount : accumulatedShortPositionAmount -= amount;
+         position.positionType == PositionType.LONG ? accumulatedLongPositionAmount -= position.positionAmount : accumulatedShortPositionAmount -= position.positionAmount;
 
     }
 
@@ -163,11 +171,11 @@ contract PerpsMarket is Ownable {
 
     function withdrawProfit() external {
         uint256 profit = positionProfit[msg.sender];
-        require(profit > 0, "No profit to withdraw");
+        require(profit > 0, NoProfit());
         positionProfit[msg.sender] = 0;
 
         (bool success,) = msg.sender.call{value: uint256(profit)}("");
-        require(success, "Transfer failed.");
+        require(success, TransferFailed());
     }
 
     function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed {
@@ -198,7 +206,7 @@ contract PerpsMarket is Ownable {
         });
 
         //Save accumulated position amount
-        positionType == PositionType.LONG ? accumulatedLongPositionAmount += amount : accumulatedShortPositionAmount += amount;
+         positionType == PositionType.LONG ? accumulatedLongPositionAmount += amount : accumulatedShortPositionAmount += amount;
 
         //Save position
         positions[msg.sender] = newPosition;
