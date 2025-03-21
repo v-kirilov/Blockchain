@@ -19,6 +19,9 @@ contract PPCampaign is AccessControl {
     error ZeroDuration();
     error IncorrectCampaignStart();
     error NoSuchParticipant();
+    error PrizeCannotBeZero();
+    error CampaignHasFinished();
+    error CampaignNotStarted();
 
     ///-///-///-///
     // Constants
@@ -51,6 +54,7 @@ contract PPCampaign is AccessControl {
 
     uint256 public campaignStartDate;
     bool public hasCampaignFinished;
+    bool public hasCampaignStarted;
 
     //When participating in the campaign a user gains points based on his trading, if it's succesfull he gets more points.
     //At the end of a campaign the top 3 users with the most points will get a prize. The prize is a token that is set at the start of the campaign.
@@ -100,26 +104,47 @@ contract PPCampaign is AccessControl {
         _;
     }
 
+    modifier campaignEnded() {
+        if (hasCampaignFinished) {
+            revert CampaignHasFinished();
+        }
+        _;
+    }
+
+    modifier campaignStarted() {
+        if (!hasCampaignStarted) {
+            revert CampaignNotStarted();
+        }
+        _;
+    }
+
     function setPrizeAmounts(uint256 _firstPrizeAmount, uint256 _secondPrizeAmount, uint256 _thirdPrizeAmount)
         external
         onlyCampaignAdmin
+        campaignEnded
     {
+        if (_firstPrizeAmount == 0 || _secondPrizeAmount == 0 || _thirdPrizeAmount == 0) {
+            revert PrizeCannotBeZero();
+        }
+
         firstPrizeAmount = _firstPrizeAmount;
         secontPrizeAmount = _secondPrizeAmount;
         thirdPrizeAmount = _thirdPrizeAmount;
     }
 
     function claimPrize() external {
-        ParticipantInfo storage participant = participants[msg.sender];
         if (!hasCampaignFinished) {
             revert CampaignStillActive();
         }
+
+        ParticipantInfo storage participant = participants[msg.sender];
+
         require(participant.prizePoints > 0, NothingToClaim());
         participant.prizePoints = 0;
         IERC20(PrizeToken).safeTransfer(msg.sender, participant.prizePoints);
     }
 
-    function upSertParticipant(address userAdress, uint256 prizePoints) external onlyCampaignAdmin {
+    function upSertParticipant(address userAdress, uint256 prizePoints) external onlyCampaignAdmin campaignStarted {
         ParticipantInfo storage participant = participants[userAdress];
         uint256 participantPoints = participant.prizePoints + prizePoints;
         updateWinners(userAdress, participantPoints);
@@ -144,7 +169,12 @@ contract PPCampaign is AccessControl {
         }
     }
 
-    function endCampaign() external onlyCampaignAdmin {
+    function startCampaign() external onlyCampaignAdmin campaignEnded {
+        campaignStartDate = block.timestamp;
+        hasCampaignStarted = true;
+    }
+
+    function endCampaign() external onlyCampaignAdmin campaignStarted campaignEnded {
         hasCampaignFinished = true;
         ParticipantInfo storage firstPrizeParticipant = participants[firstPrizeWinner];
         firstPrizeParticipant.isWinner = true;
@@ -173,3 +203,5 @@ contract PPCampaign is AccessControl {
         return (participants[participant].isWinner, participants[participant].prizePoints);
     }
 }
+
+//! Pausable!
