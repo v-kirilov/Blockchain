@@ -39,21 +39,37 @@ contract PPCampaign is AccessControl {
     uint256 public firstPrizeAmount;
     uint256 public secontPrizeAmount;
     uint256 public thirdPrizeAmount;
+
+    address public firstPrizeWinner;
+    uint256 public firstPrizePoints;
+
+    address public secondPrizeWinner;
+    uint256 public secondPrizePoints;
+
+    address public thirdPrizeWinner;
+    uint256 public thirdPrizePoints;
+
     uint256 public campaignStartDate;
     bool public hasCampaignFinished;
 
     //When participating in the campaign a user gains points based on his trading, if it's succesfull he gets more points.
     //At the end of a campaign the top 3 users with the most points will get a prize. The prize is a token that is set at the start of the campaign.
     //This token can be used to reduce his trading fees on the platform and other perks.
-    struct Participant {
-        address userAdress;
+    struct ParticipantInfo {
         uint256 prizePoints;
+        bool isWinner;
     }
 
     //Points for each participant that has accumulated in the campaign
-    mapping(address => Participant) public participants;
+    mapping(address => ParticipantInfo) public participants;
 
-    constructor(uint256 _duration, address _prizeToken, address _campaignAdmin,uint256 _campaignId, uint256 _campaignStartDate) {
+    constructor(
+        uint256 _duration,
+        address _prizeToken,
+        address _campaignAdmin,
+        uint256 _campaignId,
+        uint256 _campaignStartDate
+    ) {
         if (_duration == 0) {
             revert ZeroDuration();
         }
@@ -94,7 +110,7 @@ contract PPCampaign is AccessControl {
     }
 
     function claimPrize() external {
-        Participant storage participant = participants[msg.sender];
+        ParticipantInfo storage participant = participants[msg.sender];
         if (!hasCampaignFinished) {
             revert CampaignStillActive();
         }
@@ -103,19 +119,39 @@ contract PPCampaign is AccessControl {
         IERC20(PrizeToken).safeTransfer(msg.sender, participant.prizePoints);
     }
 
-    function upSertParticipant(address _userAdress,  uint256 _prizePoints) external onlyCampaignAdmin {
-        Participant memory participant = participants[_userAdress];
-        if (participant.userAdress == address(0)) {
-            participants[_userAdress] = Participant(_userAdress, _prizePoints);
-            return;
-        }else {
-            participant.prizePoints += _prizePoints;
-            participants[_userAdress] = participant;
+    function upSertParticipant(address userAdress, uint256 prizePoints) external onlyCampaignAdmin {
+        ParticipantInfo storage participant = participants[userAdress];
+        uint256 participantPoints = participant.prizePoints + prizePoints;
+        updateWinners(userAdress, participantPoints);
+    }
+
+    function updateWinners(address userAdress, uint256 prizePoints) private {
+        if (prizePoints > firstPrizePoints) {
+            thirdPrizePoints = secondPrizePoints;
+            thirdPrizeWinner = secondPrizeWinner;
+            secondPrizePoints = firstPrizePoints;
+            secondPrizeWinner = firstPrizeWinner;
+            firstPrizePoints = prizePoints;
+            firstPrizeWinner = userAdress;
+        } else if (prizePoints > secondPrizePoints) {
+            thirdPrizePoints = secondPrizePoints;
+            thirdPrizeWinner = secondPrizeWinner;
+            secondPrizePoints = prizePoints;
+            secondPrizeWinner = userAdress;
+        } else if (prizePoints > thirdPrizePoints) {
+            thirdPrizePoints = prizePoints;
+            thirdPrizeWinner = userAdress;
         }
     }
 
     function endCampaign() external onlyCampaignAdmin {
         hasCampaignFinished = true;
+        ParticipantInfo storage firstPrizeParticipant = participants[firstPrizeWinner];
+        firstPrizeParticipant.isWinner = true;
+        ParticipantInfo storage secondPrizeParticipant = participants[secondPrizeWinner];
+        secondPrizeParticipant.isWinner = true;
+        ParticipantInfo storage thirdPrizeParticipant = participants[thirdPrizeWinner];
+        thirdPrizeParticipant.isWinner = true;
     }
 
     function getDuration() external view returns (uint256) {
@@ -130,10 +166,10 @@ contract PPCampaign is AccessControl {
         return campaignStartDate;
     }
 
-    function getParticipantInfo(address participant) public view returns (address userAdress, uint256 prizePoints) {
-        if (participants[participant].userAdress == address(0)) {
+    function getParticipantInfo(address participant) public view returns (bool, uint256) {
+        if (participants[participant].prizePoints == 0) {
             revert NoSuchParticipant();
         }
-        return (participants[participant].userAdress, participants[participant].prizePoints);
+        return (participants[participant].isWinner, participants[participant].prizePoints);
     }
 }
