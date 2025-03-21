@@ -31,9 +31,9 @@ contract PPCampaign is AccessControl {
     ///-///-///-///
     // Immutables
     ///-///-///-///
-    uint256 public immutable MAX_CAMPAIGN_DURATION = 30 days;
-    uint256 private immutable CAMPAIGN_ID;
-    uint256 private immutable Duration;
+    uint32 public immutable MAX_CAMPAIGN_DURATION = 30 days;
+    uint32 private immutable CAMPAIGN_ID;
+    uint192 private immutable Duration;
     address private immutable PrizeToken;
 
     ///-///-///-///
@@ -68,10 +68,10 @@ contract PPCampaign is AccessControl {
     mapping(address => ParticipantInfo) public participants;
 
     constructor(
-        uint256 _duration,
+        uint32 _duration,
+        uint32 _campaignId,
         address _prizeToken,
         address _campaignAdmin,
-        uint256 _campaignId,
         uint256 _campaignStartDate
     ) {
         if (_duration == 0) {
@@ -201,6 +201,10 @@ contract PPCampaign is AccessControl {
             revert NoSuchParticipant();
         }
         return (participants[participant].isWinner, participants[participant].prizePoints);
+    }
+
+    function getCampaignId() external view returns (uint256) {
+        return CAMPAIGN_ID;
     }
 }
 
