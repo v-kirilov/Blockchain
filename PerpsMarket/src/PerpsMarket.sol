@@ -129,7 +129,7 @@ contract PerpsMarket is Ownable {
         delete positions[positionOwner];
 
          //Reduce accumulated position
-        position.positionType == PositionType.LONG ? accumulatedLongPositionAmount -= amount : accumulatedShortPositionAmount -= amount;
+        position.positionType == PositionType.LONG ? accumulatedLongPositionAmount -= position.positionAmount : accumulatedShortPositionAmount -= position.positionAmount;
     }
 
     function closePosition() public {
