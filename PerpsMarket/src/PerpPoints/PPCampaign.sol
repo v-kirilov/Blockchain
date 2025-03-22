@@ -104,6 +104,7 @@ contract PPCampaign is AccessControl {
         _;
     }
 
+    /// @notice Checks if camaping has ended and reverts if it has.
     modifier campaignEnded() {
         if (hasCampaignFinished) {
             revert CampaignHasFinished();
@@ -111,6 +112,7 @@ contract PPCampaign is AccessControl {
         _;
     }
 
+    /// @notice Checks if camaping has started and reverts if it has not.
     modifier campaignStarted() {
         if (!hasCampaignStarted) {
             revert CampaignNotStarted();
@@ -118,6 +120,11 @@ contract PPCampaign is AccessControl {
         _;
     }
 
+    /// @notice Function to set the prize amounts for the top 3 winners
+    /// @param _firstPrizeAmount Amount for the first prize
+    /// @param _secondPrizeAmount  Amount for the second prize
+    /// @param _thirdPrizeAmount  Amount for the third prize
+    /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and only if the campaign has not finished
     function setPrizeAmounts(uint256 _firstPrizeAmount, uint256 _secondPrizeAmount, uint256 _thirdPrizeAmount)
         external
         onlyCampaignAdmin
@@ -132,9 +139,14 @@ contract PPCampaign is AccessControl {
         thirdPrizeAmount = _thirdPrizeAmount;
     }
 
+    /// @notice Function to claim the prize for the top 3 winners, only callable after the campaign has finished
+    /// @dev Only callable by CAMPAIGN_ADMIN_ROLE
     function claimPrize() external {
         if (!hasCampaignFinished) {
             revert CampaignStillActive();
+        }
+        if (msg.sender != firstPrizeWinner && msg.sender != secondPrizeWinner && msg.sender != thirdPrizeWinner) {
+            revert NothingToClaim();
         }
 
         ParticipantInfo storage participant = participants[msg.sender];
@@ -144,12 +156,23 @@ contract PPCampaign is AccessControl {
         IERC20(PrizeToken).safeTransfer(msg.sender, participant.prizePoints);
     }
 
+    /// @notice Function to update or create a participant in the campaign
+    /// @param userAdress The address of the participant
+    /// @param prizePoints  The points that the participant has gained
+    /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and only if the campaign has not finished and has started
     function upSertParticipant(address userAdress, uint256 prizePoints) external onlyCampaignAdmin campaignStarted {
+        if (hasCampaignFinished) {
+            revert CampaignHasFinished();
+        }
         ParticipantInfo storage participant = participants[userAdress];
         uint256 participantPoints = participant.prizePoints + prizePoints;
         updateWinners(userAdress, participantPoints);
     }
 
+    /// @notice Function to check if the participant is a winner and update the top 3 winners
+    /// @param userAdress The address of the participant that will be updated
+    /// @param prizePoints  The points that the participant has gained and will be added to the existing points
+    /// @dev This is a private function that is called every time upSertParticipant is called
     function updateWinners(address userAdress, uint256 prizePoints) private {
         if (prizePoints > firstPrizePoints) {
             thirdPrizePoints = secondPrizePoints;
@@ -169,11 +192,15 @@ contract PPCampaign is AccessControl {
         }
     }
 
+    /// @notice Function to start the campaign
+    /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and if the campaign has not finished
     function startCampaign() external onlyCampaignAdmin campaignEnded {
         campaignStartDate = block.timestamp;
         hasCampaignStarted = true;
     }
 
+    /// @notice Function to end the campaign
+    /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and if the campaign has not finished and has started
     function endCampaign() external onlyCampaignAdmin campaignStarted campaignEnded {
         hasCampaignFinished = true;
         ParticipantInfo storage firstPrizeParticipant = participants[firstPrizeWinner];
@@ -184,18 +211,22 @@ contract PPCampaign is AccessControl {
         thirdPrizeParticipant.isWinner = true;
     }
 
+    /// @notice Function to get the duration of the campaign
     function getDuration() external view returns (uint256) {
         return Duration;
     }
 
+    /// @notice Function to get the end date of the campaign
     function getEndDate() external view returns (uint256) {
         return campaignStartDate + Duration;
     }
 
+    /// @notice Function to get the start date of the campaign
     function getCampaignStartDate() external view returns (uint256) {
         return campaignStartDate;
     }
 
+    /// @notice Function to get the prize token of the campaign
     function getParticipantInfo(address participant) public view returns (bool, uint256) {
         if (participants[participant].prizePoints == 0) {
             revert NoSuchParticipant();
@@ -203,6 +234,7 @@ contract PPCampaign is AccessControl {
         return (participants[participant].isWinner, participants[participant].prizePoints);
     }
 
+    /// @notice Function to get the prize token of the campaign
     function getCampaignId() external view returns (uint256) {
         return CAMPAIGN_ID;
     }
