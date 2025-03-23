@@ -4,24 +4,10 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "../Interfaces/IPPCampaign.sol";
 
-contract PPCampaign is AccessControl {
+contract PPCampaign is AccessControl, IPPCampaign {
     using SafeERC20 for IERC20;
-
-    ///-///-///-///
-    // Errors
-    ///-///-///-///
-    error Unauthorized();
-    error ZeroAddress();
-    error MaxCamapignDurationExceeded();
-    error CampaignStillActive();
-    error NothingToClaim();
-    error ZeroDuration();
-    error IncorrectCampaignStart();
-    error NoSuchParticipant();
-    error PrizeCannotBeZero();
-    error CampaignHasFinished();
-    error CampaignNotStarted();
 
     ///-///-///-///
     // Constants
@@ -137,6 +123,8 @@ contract PPCampaign is AccessControl {
         firstPrizeAmount = _firstPrizeAmount;
         secontPrizeAmount = _secondPrizeAmount;
         thirdPrizeAmount = _thirdPrizeAmount;
+
+        emit PrizeAmountsSet(_firstPrizeAmount, _secondPrizeAmount, _thirdPrizeAmount);
     }
 
     /// @notice Function to claim the prize for the top 3 winners, only callable after the campaign has finished
@@ -154,6 +142,8 @@ contract PPCampaign is AccessControl {
         require(participant.prizePoints > 0, NothingToClaim());
         participant.prizePoints = 0;
         IERC20(PrizeToken).safeTransfer(msg.sender, participant.prizePoints);
+
+        emit PrizeClaimed(msg.sender, participant.prizePoints);
     }
 
     /// @notice Function to update or create a participant in the campaign
@@ -167,6 +157,8 @@ contract PPCampaign is AccessControl {
         ParticipantInfo storage participant = participants[userAdress];
         uint256 participantPoints = participant.prizePoints + prizePoints;
         updateWinners(userAdress, participantPoints);
+
+        emit ParticipantAdded(userAdress);
     }
 
     /// @notice Function to check if the participant is a winner and update the top 3 winners
@@ -197,6 +189,8 @@ contract PPCampaign is AccessControl {
     function startCampaign() external onlyCampaignAdmin campaignEnded {
         campaignStartDate = block.timestamp;
         hasCampaignStarted = true;
+
+        emit CampaignStarted(campaignStartDate);
     }
 
     /// @notice Function to end the campaign
@@ -209,6 +203,8 @@ contract PPCampaign is AccessControl {
         secondPrizeParticipant.isWinner = true;
         ParticipantInfo storage thirdPrizeParticipant = participants[thirdPrizeWinner];
         thirdPrizeParticipant.isWinner = true;
+
+        emit EndCampaign(campaignStartDate + Duration);
     }
 
     /// @notice Function to get the duration of the campaign
@@ -227,7 +223,7 @@ contract PPCampaign is AccessControl {
     }
 
     /// @notice Function to get the prize token of the campaign
-    function getParticipantInfo(address participant) public view returns (bool, uint256) {
+    function getParticipantInfo(address participant) external view returns (bool, uint256) {
         if (participants[participant].prizePoints == 0) {
             revert NoSuchParticipant();
         }
