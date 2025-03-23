@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./Interfaces/IPPCampaign.sol";
 import "./VPriceFeed.sol";
 
 contract PerpsMarket is Ownable {
@@ -17,6 +18,7 @@ contract PerpsMarket is Ownable {
     error PositionAmountIsTooSmall();
     error NoProfit();
     error TransferFailed();
+    error ZeroAddress();
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -45,14 +47,15 @@ contract PerpsMarket is Ownable {
     uint32 private constant MAX_BIPS_LEVERAGE = 30_000; // 3x
     uint32 private constant TO_BIPS = 10_000;
     uint32 public Fee = 1000; // 1%
-    uint64 public constant MIN_POSITION_AMOUNT = 0.01 ether;      
- 
+    uint64 public constant MIN_POSITION_AMOUNT = 0.01 ether;
 
     uint256 private accumulatedFees;
     uint256 public lastUpdatedTimestamp;
     uint256 private accumulatedLongPositionAmount;
     uint256 private accumulatedShortPositionAmount;
     address private feeCollector;
+
+    IPPCampaign private ppCampaign;
 
     mapping(address user => bool isBlacklisted) public blackListedUsers;
     //Need it to have it in enumerable set, only 32 byte variables are allowed in the set
@@ -69,7 +72,14 @@ contract PerpsMarket is Ownable {
         _;
     }
 
-    constructor() Ownable(msg.sender) {}
+    constructor(address _feeCollector, address _campaignAddress) Ownable(msg.sender) {
+        if (_feeCollector == address(0) || _campaignAddress == address(0)) {
+            revert ZeroAddress();
+        }
+
+        feeCollector = _feeCollector;
+        ppCampaign =  IPPCampaign(_campaignAddress);
+    }
 
     function updatePositions(uint256 deposit, PositionType positionType) public {
         lastUpdatedTimestamp = block.timestamp;
@@ -128,8 +138,10 @@ contract PerpsMarket is Ownable {
         // null the position
         delete positions[positionOwner];
 
-         //Reduce accumulated position
-        position.positionType == PositionType.LONG ? accumulatedLongPositionAmount -= position.positionAmount : accumulatedShortPositionAmount -= position.positionAmount;
+        //Reduce accumulated position
+        position.positionType == PositionType.LONG
+            ? accumulatedLongPositionAmount -= position.positionAmount
+            : accumulatedShortPositionAmount -= position.positionAmount;
     }
 
     function closePosition() public {
@@ -163,11 +175,10 @@ contract PerpsMarket is Ownable {
         positions[msg.sender] = position;
 
         //Reduce accumulated position
-         position.positionType == PositionType.LONG ? accumulatedLongPositionAmount -= position.positionAmount : accumulatedShortPositionAmount -= position.positionAmount;
-
+        position.positionType == PositionType.LONG
+            ? accumulatedLongPositionAmount -= position.positionAmount
+            : accumulatedShortPositionAmount -= position.positionAmount;
     }
-
-
 
     function withdrawProfit() external {
         uint256 profit = positionProfit[msg.sender];
@@ -206,7 +217,9 @@ contract PerpsMarket is Ownable {
         });
 
         //Save accumulated position amount
-         positionType == PositionType.LONG ? accumulatedLongPositionAmount += amount : accumulatedShortPositionAmount += amount;
+        positionType == PositionType.LONG
+            ? accumulatedLongPositionAmount += amount
+            : accumulatedShortPositionAmount += amount;
 
         //Save position
         positions[msg.sender] = newPosition;
@@ -241,7 +254,7 @@ contract PerpsMarket is Ownable {
             profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
         }
     }
-    
+
     function calculateFeesForPosition(uint256 positionAmount) private view returns (uint256) {
         return (positionAmount * Fee) / TO_BIPS;
     }
@@ -268,6 +281,20 @@ contract PerpsMarket is Ownable {
         return positionEntryPrice + ((TO_BIPS * positionEntryPrice) / positionLeverage);
     }
 
+    function setNewCampaignAddress(address _campaignAddress) external onlyOwner {
+        if (_campaignAddress == address(0)) {
+            revert ZeroAddress();
+        }
+        ppCampaign =IPPCampaign(_campaignAddress) ;
+    }
+
+    function setNewFeeCollectorAddress(address _feeCollector) external onlyOwner {
+        if (_feeCollector == address(0)) {
+            revert ZeroAddress();
+        }
+        feeCollector = _feeCollector;
+    }
+
     function calculateUpdatedPositionEntryPrice(uint256 oldAmout, int256 oldPrice, uint256 newAmount, int256 newPrice)
         private
         pure
@@ -287,7 +314,6 @@ contract PerpsMarket is Ownable {
         return usersWithPositions.values();
     }
 }
-
 
 //! update all positions , check if they are eligible for liquidation
 //! calculate fees when updating position
