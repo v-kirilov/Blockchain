@@ -3,26 +3,27 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
+import "../Interfaces/IPerpCampaignFactory.sol";
 import "./PPCampaign.sol";
 
-contract PerpCampaignFactory is AccessControl {
-    error Unauthorized();
-
+contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     uint32 private campaignId;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant FACTORY_ROLE = keccak256("FACTORY_ROLE");
 
-    event PerpPointsCreated(address indexed perpPoints, address indexed owner);
-
     mapping(uint256 pmID => address markets) public perpMarkets;
-
-    event PerpMarketCreated(address indexed perpMarket, uint256 indexed campaignId);
 
     constructor(address _admin) {
         _grantRole(ADMIN_ROLE, _admin);
     }
 
+    /// @notice Function to create a campaign contract
+    /// @param duration Duration for the current campaigns
+    /// @param prizeToken  Token address that is set as the prize token
+    /// @param campaignAdmin  Campaign admin address
+    /// @param campaignStartDate  Campaign start date
+    /// @dev Only callable by FACTORY_ROLE
     function createPerpCampaignContract(
         uint32 duration,
         address prizeToken,
@@ -40,16 +41,26 @@ contract PerpCampaignFactory is AccessControl {
         address campaignAddress = Create2.deploy(0, salt, bytecode);
         //deploy
 
-        emit PerpMarketCreated(campaignAddress, newCampaignId);
+        emit CampaignCreated(duration, prizeToken, campaignAdmin, campaignStartDate, campaignAddress);
     }
 
+    /// @notice Function to grant factory role
+    /// @param _account Address that will be granted the factory role
+    /// @dev Only callable by ADMIN_ROLE
     function grantFactoryRole(address _account) external {
         require(hasRole(ADMIN_ROLE, msg.sender), Unauthorized());
         grantRole(FACTORY_ROLE, _account);
+
+        emit RoleGranted(_account);
     }
 
+    /// @notice Function to revoke factory role
+    /// @param _account Address that will be have the factory role removed
+    /// @dev Only callable by ADMIN_ROLE
     function revokeFactoryRole(address _account) external {
         require(hasRole(ADMIN_ROLE, msg.sender), Unauthorized());
         revokeRole(FACTORY_ROLE, _account);
+
+        emit RoleRevoked(_account);
     }
 }
