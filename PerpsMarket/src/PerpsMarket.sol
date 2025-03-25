@@ -56,6 +56,7 @@ contract PerpsMarket is Ownable {
     address private feeCollector;
 
     IPPCampaign private ppCampaign;
+    bool private isCampaignActive;
 
     mapping(address user => bool isBlacklisted) public blackListedUsers;
     //Need it to have it in enumerable set, only 32 byte variables are allowed in the set
@@ -313,8 +314,16 @@ contract PerpsMarket is Ownable {
     function getUsersWithPositions() external view returns (address[] memory) {
         return usersWithPositions.values();
     }
+
+    function startCampaign() external onlyOwner {
+        ppCampaign.startCampaign();
+        isCampaignActive = true;
+    }
+
+    function checkIfCampaignActive() public view returns (bool) {
+        return ppCampaign.isCampaignActive();
+    }
 }
 
 //! update all positions , check if they are eligible for liquidation
-//! calculate fees when updating position
-//! caclulate fees when liquidating position
+//! Handle IPPCampaign stuff
