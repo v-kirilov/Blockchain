@@ -51,4 +51,6 @@ interface IPPCampaign {
     function getParticipantInfo(address participant) external view returns (bool, uint256);
 
     function getCampaignId() external view returns (uint256);
+
+    function isCampaignActive() external view returns (bool);
 }

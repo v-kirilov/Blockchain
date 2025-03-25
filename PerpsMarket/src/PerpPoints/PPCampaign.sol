@@ -184,9 +184,12 @@ contract PPCampaign is AccessControl, IPPCampaign {
         }
     }
 
-    /// @notice Function to start the campaign
+    /// @notice Function to start the campaign early
     /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and if the campaign has not finished
     function startCampaign() external onlyCampaignAdmin campaignEnded {
+        if (hasCampaignStarted) {
+            return;
+        }
         campaignStartDate = block.timestamp;
         hasCampaignStarted = true;
 
@@ -208,21 +211,26 @@ contract PPCampaign is AccessControl, IPPCampaign {
     }
 
     /// @notice Function to get the duration of the campaign
+    /// @return uint256 duration of campaign
     function getDuration() external view returns (uint256) {
         return Duration;
     }
 
     /// @notice Function to get the end date of the campaign
+    /// @return uint256 end date of campaign
     function getEndDate() external view returns (uint256) {
         return campaignStartDate + Duration;
     }
 
     /// @notice Function to get the start date of the campaign
+    /// @return uint256 campaignStartDate
     function getCampaignStartDate() external view returns (uint256) {
         return campaignStartDate;
     }
 
     /// @notice Function to get the prize token of the campaign
+    /// @return bool is winner
+    /// @return uint256 prize points
     function getParticipantInfo(address participant) external view returns (bool, uint256) {
         if (participants[participant].prizePoints == 0) {
             revert NoSuchParticipant();
@@ -231,8 +239,15 @@ contract PPCampaign is AccessControl, IPPCampaign {
     }
 
     /// @notice Function to get the prize token of the campaign
+    /// @return uint256 CAMPAIGN_ID
     function getCampaignId() external view returns (uint256) {
         return CAMPAIGN_ID;
+    }
+
+    /// @notice Function to get the status of the campaign
+    /// @return bool hasCampaignStarted
+    function isCampaignActive() external view returns (bool) {
+        return hasCampaignStarted;
     }
 }
 
