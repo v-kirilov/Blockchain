@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "./Interfaces/IPPCampaign.sol";
 import "./VPriceFeed.sol";
 
@@ -152,17 +153,29 @@ contract PerpsMarket is Ownable {
             revert PositionNotExisting();
         }
         //get price
-        int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
+        uint256 ethPrice = uint256(PriceFeed.getChainlinkDataFeedLatestAnswer());
 
         //get position
         Position memory position = positions[msg.sender];
         //calculate profit
-        int256 profitBeforeFees = calculateProfit(position, uint256(ethPrice));
+        int256 profitBeforeFees = calculateProfit(position, ethPrice);
+        if (profitBeforeFees <= 0) {
+            revert NoProfit();
+        }
 
         //calculate fees
         uint256 fees = calculateFeesForPosition(position.positionAmount);
-        uint256 profit = uint256(profitBeforeFees) - fees;
-        accumulatedFees += fees;
+
+        // Pay with prize token if user has enough balance or pay with ETH
+        uint256 profit;
+        if (feePrizeToken.balanceOf(msg.sender) > fees * ethPrice / 1e18) {
+            feePrizeToken.transferFrom(msg.sender, feeCollector, fees * ethPrice / 1e18);
+            profit = uint256(profitBeforeFees);
+        } else {
+            accumulatedFees += fees;
+            profit = uint256(profitBeforeFees) - fees;
+        }
+
         //Remove user from positions
         usersWithPositions.remove(msg.sender);
 
@@ -200,7 +213,7 @@ contract PerpsMarket is Ownable {
             revert PositionAmountIsTooSmall();
         }
         //Fetch ETH price
-        int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
+        uint256 ethPrice = uint256(PriceFeed.getChainlinkDataFeedLatestAnswer());
 
         // calculate fees
         uint256 amountDepositedMinusFees;
@@ -216,14 +229,14 @@ contract PerpsMarket is Ownable {
 
         // Check position size
         uint256 leverage = calculatePositionLeverage(amount, amountDepositedMinusFees);
-        uint256 positionLiquidationPrice = calculatePositionLiquidationPrice(uint256(ethPrice), leverage, positionType);
+        uint256 positionLiquidationPrice = calculatePositionLiquidationPrice(ethPrice, leverage, positionType);
 
         Position memory newPosition = Position({
             user: msg.sender,
             amountDeposited: amountDepositedMinusFees,
             positionAmount: amount,
             positionType: positionType,
-            positionEntryPrice: uint256(ethPrice),
+            positionEntryPrice: ethPrice,
             positionLiquidationPrice: positionLiquidationPrice,
             positionLeverage: leverage
         });
@@ -336,7 +349,7 @@ contract PerpsMarket is Ownable {
         isCampaignActive = false;
     }
 
-    function checkIfCampaignActive() public view returns (bool) {
+    function checkIfCampaignActive() public returns (bool) {
         if (ppCampaign.isCampaignActive()) {
             isCampaignActive = true;
             return true;
