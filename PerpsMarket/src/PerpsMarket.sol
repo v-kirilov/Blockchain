@@ -56,6 +56,7 @@ contract PerpsMarket is Ownable {
     address private feeCollector;
 
     IPPCampaign private ppCampaign;
+    IERC20 private feePrizeToken;
     bool private isCampaignActive;
 
     mapping(address user => bool isBlacklisted) public blackListedUsers;
@@ -73,13 +74,14 @@ contract PerpsMarket is Ownable {
         _;
     }
 
-    constructor(address _feeCollector, address _campaignAddress) Ownable(msg.sender) {
-        if (_feeCollector == address(0) || _campaignAddress == address(0)) {
+    constructor(address _feeCollector, address _campaignAddress,address _feePrizeToken) Ownable(msg.sender) {
+        if (_feeCollector == address(0) || _campaignAddress == address(0) || _feePrizeToken == address(0)) {
             revert ZeroAddress();
         }
 
         feeCollector = _feeCollector;
         ppCampaign = IPPCampaign(_campaignAddress);
+        feePrizeToken = IERC20(_feePrizeToken);
     }
 
     function updatePositions(uint256 deposit, PositionType positionType) public {
@@ -337,3 +339,5 @@ contract PerpsMarket is Ownable {
 
 //! update all positions , check if they are eligible for liquidation
 //! Handle IPPCampaign stuff
+//! 1. Add players to the campaign when the close positions.
+//! 2. Fees to be payed out with prizes from campaign winnings
