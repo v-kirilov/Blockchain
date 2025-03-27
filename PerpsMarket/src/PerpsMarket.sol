@@ -74,7 +74,7 @@ contract PerpsMarket is Ownable {
         _;
     }
 
-    constructor(address _feeCollector, address _campaignAddress,address _feePrizeToken) Ownable(msg.sender) {
+    constructor(address _feeCollector, address _campaignAddress, address _feePrizeToken) Ownable(msg.sender) {
         if (_feeCollector == address(0) || _campaignAddress == address(0) || _feePrizeToken == address(0)) {
             revert ZeroAddress();
         }
@@ -199,13 +199,22 @@ contract PerpsMarket is Ownable {
         if (amount < MIN_POSITION_AMOUNT) {
             revert PositionAmountIsTooSmall();
         }
+        //Fetch ETH price
+        int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
+
         // calculate fees
+        uint256 amountDepositedMinusFees;
         uint256 fees = calculateFeesForPosition(amount);
-        accumulatedFees += fees;
-        uint256 amountDepositedMinusFees = msg.value - fees;
+        // Pay with prize token if user has enough balance or pay with ETH
+        if (feePrizeToken.balanceOf(msg.sender) > fees * ethPrice / 1e18) {
+            feePrizeToken.transferFrom(msg.sender, feeCollector, fees * ethPrice / 1e18);
+            amountDepositedMinusFees = msg.value;
+        } else {
+            accumulatedFees += fees;
+            amountDepositedMinusFees = msg.value - fees;
+        }
 
         // Check position size
-        int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
         uint256 leverage = calculatePositionLeverage(amount, amountDepositedMinusFees);
         uint256 positionLiquidationPrice = calculatePositionLiquidationPrice(uint256(ethPrice), leverage, positionType);
 
