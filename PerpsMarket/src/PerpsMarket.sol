@@ -79,7 +79,7 @@ contract PerpsMarket is Ownable {
         }
 
         feeCollector = _feeCollector;
-        ppCampaign =  IPPCampaign(_campaignAddress);
+        ppCampaign = IPPCampaign(_campaignAddress);
     }
 
     function updatePositions(uint256 deposit, PositionType positionType) public {
@@ -286,7 +286,7 @@ contract PerpsMarket is Ownable {
         if (_campaignAddress == address(0)) {
             revert ZeroAddress();
         }
-        ppCampaign =IPPCampaign(_campaignAddress) ;
+        ppCampaign = IPPCampaign(_campaignAddress);
     }
 
     function setNewFeeCollectorAddress(address _feeCollector) external onlyOwner {
@@ -320,8 +320,18 @@ contract PerpsMarket is Ownable {
         isCampaignActive = true;
     }
 
+    function endCampaign() external onlyOwner {
+        ppCampaign.endCampaign();
+        isCampaignActive = false;
+    }
+
     function checkIfCampaignActive() public view returns (bool) {
-        return ppCampaign.isCampaignActive();
+        if (ppCampaign.isCampaignActive()) {
+            isCampaignActive = true;
+            return true;
+        }
+        isCampaignActive = false;
+        return false;
     }
 }
 
