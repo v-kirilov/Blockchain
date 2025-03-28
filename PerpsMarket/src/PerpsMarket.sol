@@ -183,6 +183,10 @@ contract PerpsMarket is Ownable {
         if (profit > 0) {
             positionProfit[msg.sender] += uint256(profit);
         }
+        if (isCampaignActive) {
+            ppCampaign.upSertParticipant(msg.sender, profit);
+        }
+
         position.positionAmount = 0;
         position.amountDeposited = 0;
         position.positionEntryPrice = 0;
@@ -363,3 +367,4 @@ contract PerpsMarket is Ownable {
 //! Handle IPPCampaign stuff
 //! 1. Add players to the campaign when the close positions.
 //! 2. Fees to be payed out with prizes from campaign winnings
+//! 3. Add stable coin for the prize token.
