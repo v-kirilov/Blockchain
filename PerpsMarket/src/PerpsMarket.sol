@@ -353,6 +353,10 @@ contract PerpsMarket is Ownable {
         isCampaignActive = false;
     }
 
+        function blackListUser(address userToBlackList) external onlyOwner {
+        blackListedUsers[userToBlackList] = true;
+    }
+
     function checkIfCampaignActive() public returns (bool) {
         if (ppCampaign.isCampaignActive()) {
             isCampaignActive = true;
@@ -365,6 +369,5 @@ contract PerpsMarket is Ownable {
 
 //! update all positions , check if they are eligible for liquidation
 //! Handle IPPCampaign stuff
-//! 1. Add players to the campaign when the close positions.
-//! 2. Fees to be payed out with prizes from campaign winnings
+//! 1. Who creates the campaign contract?
 //! 3. Add stable coin for the prize token.
