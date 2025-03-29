@@ -4,9 +4,10 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../Interfaces/IPPCampaign.sol";
 
-contract PPCampaign is AccessControl, IPPCampaign {
+contract PPCampaign is AccessControl, IPPCampaign,Pausable {
     using SafeERC20 for IERC20;
 
     ///-///-///-///
@@ -129,7 +130,7 @@ contract PPCampaign is AccessControl, IPPCampaign {
 
     /// @notice Function to claim the prize for the top 3 winners, only callable after the campaign has finished
     /// @dev Only callable by CAMPAIGN_ADMIN_ROLE
-    function claimPrize() external {
+    function claimPrize() external whenNotPaused{
         if (!hasCampaignFinished) {
             revert CampaignStillActive();
         }
@@ -150,7 +151,7 @@ contract PPCampaign is AccessControl, IPPCampaign {
     /// @param userAdress The address of the participant
     /// @param prizePoints  The points that the participant has gained
     /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and only if the campaign has not finished and has started
-    function upSertParticipant(address userAdress, uint256 prizePoints) external onlyCampaignAdmin campaignStarted {
+    function upSertParticipant(address userAdress, uint256 prizePoints) external onlyCampaignAdmin campaignStarted whenNotPaused{
         if (hasCampaignFinished) {
             revert CampaignHasFinished();
         }
@@ -186,7 +187,7 @@ contract PPCampaign is AccessControl, IPPCampaign {
 
     /// @notice Function to start the campaign early
     /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and if the campaign has not finished
-    function startCampaign() external onlyCampaignAdmin campaignEnded {
+    function startCampaign() external onlyCampaignAdmin campaignEnded whenNotPaused{
         if (hasCampaignStarted) {
             return;
         }
