@@ -4,10 +4,11 @@ pragma solidity 0.8.28;
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./Interfaces/IPPCampaign.sol";
 import "./VPriceFeed.sol";
 
-contract PerpsMarket is Ownable {
+contract PerpsMarket is Ownable ,Pausable{
     ///-///-///-///
     // Errors
     ///-///-///-///
@@ -85,7 +86,7 @@ contract PerpsMarket is Ownable {
         feePrizeToken = IERC20(_feePrizeToken);
     }
 
-    function updatePositions(uint256 deposit, PositionType positionType) public {
+    function updatePositions(uint256 deposit, PositionType positionType) public{
         lastUpdatedTimestamp = block.timestamp;
         //Update positions
 
@@ -200,7 +201,7 @@ contract PerpsMarket is Ownable {
             : accumulatedShortPositionAmount -= position.positionAmount;
     }
 
-    function withdrawProfit() external {
+    function withdrawProfit() external whenNotPaused{
         uint256 profit = positionProfit[msg.sender];
         require(profit > 0, NoProfit());
         positionProfit[msg.sender] = 0;
@@ -209,7 +210,7 @@ contract PerpsMarket is Ownable {
         require(success, TransferFailed());
     }
 
-    function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed {
+    function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed whenNotPaused{
         if (msg.value == 0) {
             revert NoETHProvided();
         }
