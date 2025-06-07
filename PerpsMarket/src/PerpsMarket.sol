@@ -1,5 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.28;
+pragma solidity ^0.8.28;
+
+/*=========================================================================*
+ * ██████╗ ███████╗██████╗ ██████╗ ███████╗    ███╗   ███╗██╗  ██╗████████╗
+ * ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝    ████╗ ████║██║ ██╔╝╚══██╔══╝
+ * ██████╔╝█████╗  ██████╔╝██████╔╝███████╗    ██╔████╔██║█████╔╝    ██║   
+ * ██╔═══╝ ██╔══╝  ██╔══██╗██╔═══╝ ╚════██║    ██║╚██╔╝██║██╔═██╗    ██║   
+ * ██║     ███████╗██║  ██║██║     ███████║    ██║ ╚═╝ ██║██║  ██╗   ██║   
+ * ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝     ╚══════╝    ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   
+ * A Decentralized Perpetual Exchange Market
+ *=========================================================================*/
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -8,7 +18,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./Interfaces/IPPCampaign.sol";
 import "./VPriceFeed.sol";
 
-contract PerpsMarket is Ownable ,Pausable{
+contract PerpsMarket is Ownable, Pausable {
     ///-///-///-///
     // Errors
     ///-///-///-///
@@ -76,6 +86,10 @@ contract PerpsMarket is Ownable ,Pausable{
         _;
     }
 
+    /// @notice Constructor for the contract
+    /// @param _feeCollector the address where the fees will be collected
+    /// @param _campaignAddress the address of the campaign contract
+    /// @param _feePrizeToken the address of the prize token that will be used for fees and prizes
     constructor(address _feeCollector, address _campaignAddress, address _feePrizeToken) Ownable(msg.sender) {
         if (_feeCollector == address(0) || _campaignAddress == address(0) || _feePrizeToken == address(0)) {
             revert ZeroAddress();
@@ -86,7 +100,15 @@ contract PerpsMarket is Ownable ,Pausable{
         feePrizeToken = IERC20(_feePrizeToken);
     }
 
-    function updatePositions(uint256 deposit, PositionType positionType) public{
+    ///-///-///-///
+    //  Public functions
+    ///-///-///-///
+
+    /// @notice Function to update a position
+    /// @param deposit The amount deposited to update a position
+    /// @param positionType The type of position (LONG or SHORT)
+
+    function updatePositions(uint256 deposit, PositionType positionType) public {
         lastUpdatedTimestamp = block.timestamp;
         //Update positions
 
@@ -120,6 +142,10 @@ contract PerpsMarket is Ownable ,Pausable{
         positions[msg.sender] = position;
     }
 
+    /// @notice Function to liquidate a position
+    /// @param positionOwner The address of the position owner
+    /// @notice Can be called by anyone
+
     function liquidatePosition(address positionOwner) public {
         //Get position
         Position memory position = positions[positionOwner];
@@ -149,6 +175,9 @@ contract PerpsMarket is Ownable ,Pausable{
             : accumulatedShortPositionAmount -= position.positionAmount;
     }
 
+    /// @notice Function to close a position
+    /// @notice Called by the position owner
+
     function closePosition() public {
         if (!usersWithPositions.contains(msg.sender)) {
             revert PositionNotExisting();
@@ -158,6 +187,10 @@ contract PerpsMarket is Ownable ,Pausable{
 
         //get position
         Position memory position = positions[msg.sender];
+
+        if (position.positionAmount == 0) {
+            revert PositionNotExisting();
+        }
         //calculate profit
         int256 profitBeforeFees = calculateProfit(position, ethPrice);
         if (profitBeforeFees <= 0) {
@@ -201,61 +234,15 @@ contract PerpsMarket is Ownable ,Pausable{
             : accumulatedShortPositionAmount -= position.positionAmount;
     }
 
-    function withdrawProfit() external whenNotPaused{
-        uint256 profit = positionProfit[msg.sender];
-        require(profit > 0, NoProfit());
-        positionProfit[msg.sender] = 0;
+    ///-///-///-///
+    //  Private functions
+    ///-///-///-///
 
-        (bool success,) = msg.sender.call{value: uint256(profit)}("");
-        require(success, TransferFailed());
-    }
-
-    function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed whenNotPaused{
-        if (msg.value == 0) {
-            revert NoETHProvided();
-        }
-        if (amount < MIN_POSITION_AMOUNT) {
-            revert PositionAmountIsTooSmall();
-        }
-        //Fetch ETH price
-        uint256 ethPrice = uint256(PriceFeed.getChainlinkDataFeedLatestAnswer());
-
-        // calculate fees
-        uint256 amountDepositedMinusFees;
-        uint256 fees = calculateFeesForPosition(amount);
-        // Pay with prize token if user has enough balance or pay with ETH
-        if (feePrizeToken.balanceOf(msg.sender) > fees * ethPrice / 1e18) {
-            feePrizeToken.transferFrom(msg.sender, feeCollector, fees * ethPrice / 1e18);
-            amountDepositedMinusFees = msg.value;
-        } else {
-            accumulatedFees += fees;
-            amountDepositedMinusFees = msg.value - fees;
-        }
-
-        // Check position size
-        uint256 leverage = calculatePositionLeverage(amount, amountDepositedMinusFees);
-        uint256 positionLiquidationPrice = calculatePositionLiquidationPrice(ethPrice, leverage, positionType);
-
-        Position memory newPosition = Position({
-            user: msg.sender,
-            amountDeposited: amountDepositedMinusFees,
-            positionAmount: amount,
-            positionType: positionType,
-            positionEntryPrice: ethPrice,
-            positionLiquidationPrice: positionLiquidationPrice,
-            positionLeverage: leverage
-        });
-
-        //Save accumulated position amount
-        positionType == PositionType.LONG
-            ? accumulatedLongPositionAmount += amount
-            : accumulatedShortPositionAmount += amount;
-
-        //Save position
-        positions[msg.sender] = newPosition;
-        usersWithPositions.add(msg.sender);
-    }
-
+    /// @notice Function to calculate a position's leverage
+    /// @param positionAmount Current position amount
+    /// @param deposited Amount deposited
+    /// @return leverageBips Leverage in basis points
+    
     function calculatePositionLeverage(uint256 positionAmount, uint256 deposited) private pure returns (uint256) {
         if (deposited >= positionAmount) {
             //no leverage
@@ -311,6 +298,73 @@ contract PerpsMarket is Ownable ,Pausable{
         return positionEntryPrice + ((TO_BIPS * positionEntryPrice) / positionLeverage);
     }
 
+    function calculateUpdatedPositionEntryPrice(uint256 oldAmout, int256 oldPrice, uint256 newAmount, int256 newPrice)
+        private
+        pure
+        returns (int256)
+    {
+        return ((int256(oldAmout) * oldPrice) + (int256(newAmount) * newPrice)) / int256(oldAmout + newAmount);
+    }
+
+    ///-///-///-///
+    //  External functions
+    ///-///-///-///
+
+    function withdrawProfit() external whenNotPaused {
+        uint256 profit = positionProfit[msg.sender];
+        require(profit > 0, NoProfit());
+        positionProfit[msg.sender] = 0;
+
+        (bool success,) = msg.sender.call{value: uint256(profit)}("");
+        require(success, TransferFailed());
+    }
+
+    function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed whenNotPaused {
+        if (msg.value == 0) {
+            revert NoETHProvided();
+        }
+        if (amount < MIN_POSITION_AMOUNT) {
+            revert PositionAmountIsTooSmall();
+        }
+        //Fetch ETH price
+        uint256 ethPrice = uint256(PriceFeed.getChainlinkDataFeedLatestAnswer());
+
+        // calculate fees
+        uint256 amountDepositedMinusFees;
+        uint256 fees = calculateFeesForPosition(amount);
+        // Pay with prize token if user has enough balance or pay with ETH
+        if (feePrizeToken.balanceOf(msg.sender) > fees * ethPrice / 1e18) {
+            feePrizeToken.transferFrom(msg.sender, feeCollector, fees * ethPrice / 1e18);
+            amountDepositedMinusFees = msg.value;
+        } else {
+            accumulatedFees += fees;
+            amountDepositedMinusFees = msg.value - fees;
+        }
+
+        // Check position size
+        uint256 leverage = calculatePositionLeverage(amount, amountDepositedMinusFees);
+        uint256 positionLiquidationPrice = calculatePositionLiquidationPrice(ethPrice, leverage, positionType);
+
+        Position memory newPosition = Position({
+            user: msg.sender,
+            amountDeposited: amountDepositedMinusFees,
+            positionAmount: amount,
+            positionType: positionType,
+            positionEntryPrice: ethPrice,
+            positionLiquidationPrice: positionLiquidationPrice,
+            positionLeverage: leverage
+        });
+
+        //Save accumulated position amount
+        positionType == PositionType.LONG
+            ? accumulatedLongPositionAmount += amount
+            : accumulatedShortPositionAmount += amount;
+
+        //Save position
+        positions[msg.sender] = newPosition;
+        usersWithPositions.add(msg.sender);
+    }
+
     function setNewCampaignAddress(address _campaignAddress) external onlyOwner {
         if (_campaignAddress == address(0)) {
             revert ZeroAddress();
@@ -323,14 +377,6 @@ contract PerpsMarket is Ownable ,Pausable{
             revert ZeroAddress();
         }
         feeCollector = _feeCollector;
-    }
-
-    function calculateUpdatedPositionEntryPrice(uint256 oldAmout, int256 oldPrice, uint256 newAmount, int256 newPrice)
-        private
-        pure
-        returns (int256)
-    {
-        return ((int256(oldAmout) * oldPrice) + (int256(newAmount) * newPrice)) / int256(oldAmout + newAmount);
     }
 
     function getPosition(address positionAddress) external view returns (Position memory) {
@@ -354,11 +400,11 @@ contract PerpsMarket is Ownable ,Pausable{
         isCampaignActive = false;
     }
 
-        function blackListUser(address userToBlackList) external onlyOwner {
+    function blackListUser(address userToBlackList) external onlyOwner {
         blackListedUsers[userToBlackList] = true;
     }
 
-    function checkIfCampaignActive() public returns (bool) {
+    function checkIfCampaignActive() external returns (bool) {
         if (ppCampaign.isCampaignActive()) {
             isCampaignActive = true;
             return true;
@@ -369,6 +415,6 @@ contract PerpsMarket is Ownable ,Pausable{
 }
 
 //! update all positions , check if they are eligible for liquidation
-//! Handle IPPCampaign stuff
+
 //! 1. Who creates the campaign contract?
-//! 3. Add stable coin for the prize token.
+//! 3. Add stable coin for the prize token?
