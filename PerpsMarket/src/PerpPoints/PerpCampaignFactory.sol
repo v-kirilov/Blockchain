@@ -6,6 +6,11 @@ import "@openzeppelin/contracts/utils/Create2.sol";
 import "../Interfaces/IPerpCampaignFactory.sol";
 import "./PPCampaign.sol";
 
+    /// @title PerpCampaignFactory
+    /// @notice This contract is responsible for creating Campaign contracts.
+    /// @dev For every campaign a separate contract is deployed.
+    /// @dev A contract is deployed by the address with FACTORY_ROLE.
+
 contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     uint32 private campaignId;
 
