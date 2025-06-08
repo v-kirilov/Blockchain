@@ -5,11 +5,13 @@ import {Test, console2} from "forge-std/Test.sol";
 import {PerpsMarket} from "../src/PerpsMarket.sol";
 import {PerpCampaignFactory} from "../src/PerpPoints/PerpCampaignFactory.sol";
 import {PPCampaign} from "../src/PerpPoints/PPCampaign.sol";
+import {PPToken} from "../src/PerpPoints/PPToken.sol";
 
 contract PerpsMarketTest is Test {
     PerpsMarket public perpsMarket;
     PerpCampaignFactory public ppFactory;
     PPCampaign public ppCampaign;
+    PPToken public ppToken;
     address public alice = makeAddr("alice");
     address public factoryMan = makeAddr("factoryMan");
     address public admin = makeAddr("admin");
@@ -19,16 +21,16 @@ contract PerpsMarketTest is Test {
 
     function setUp() public {
         ppFactory = new PerpCampaignFactory(admin);
-        vm.prank(admin);
+        vm.startPrank(admin);
         ppFactory.grantFactoryRole(factoryMan);
+        ppToken = new PPToken("Perp Points Token", "PPT");
+        vm.stopPrank();
 
         vm.prank(factoryMan);
-        ppCampaign = PPCampaign(ppFactory.createPerpCampaignContract(10 days, address(0), admin, block.timestamp)) ;
-        //perpsMarket = new PerpsMarket();
+        ppCampaign = PPCampaign(ppFactory.createPerpCampaignContract(10 days, address(ppToken), admin, block.timestamp)); //! Need prize token address
+        vm.prank(admin);
+        perpsMarket = new PerpsMarket(feeCollector, address(ppCampaign),address(ppToken));
 
-        // Setup test accounts with initial balance
-        vm.deal(alice, INITIAL_BALANCE);
-        vm.deal(bob, INITIAL_BALANCE);
     }
 
     function test_Initialization() public {}
