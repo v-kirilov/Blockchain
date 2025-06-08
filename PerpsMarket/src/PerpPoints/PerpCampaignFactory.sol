@@ -34,7 +34,7 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
         address prizeToken,
         address campaignAdmin,
         uint256 campaignStartDate
-    ) external {
+    ) external returns (address) {
         require(hasRole(FACTORY_ROLE, msg.sender), Unauthorized());
 
         campaignId++;
@@ -47,6 +47,7 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
         //deploy
 
         emit CampaignCreated(duration, prizeToken, campaignAdmin, campaignStartDate, campaignAddress);
+        return campaignAddress;
     }
 
     /// @notice Function to grant factory role
@@ -54,6 +55,12 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     /// @dev Only callable by ADMIN_ROLE
     function grantFactoryRole(address _account) external {
         require(hasRole(ADMIN_ROLE, msg.sender), Unauthorized());
+        if (_account == address(0)) {
+            revert ZeroAddress();
+        }
+        if (_account == msg.sender) {
+            revert NotPossible();
+        }
         grantRole(FACTORY_ROLE, _account);
 
         emit RoleGranted(_account);
