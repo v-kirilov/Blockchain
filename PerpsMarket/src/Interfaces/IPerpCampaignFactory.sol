@@ -6,6 +6,8 @@ interface IPerpCampaignFactory {
     // Errors
     ///-///-///-///
     error Unauthorized();
+    error NotPossible();
+    error ZeroAddress();
 
     ///-///-///-///
     // Events
