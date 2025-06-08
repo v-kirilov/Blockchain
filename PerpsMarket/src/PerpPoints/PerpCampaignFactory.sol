@@ -14,13 +14,13 @@ import "./PPCampaign.sol";
 contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     uint32 private campaignId;
 
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant FACTORY_ROLE = keccak256("FACTORY_ROLE");
 
     mapping(uint256 pmID => address markets) public perpMarkets;
 
     constructor(address _admin) {
-        _grantRole(ADMIN_ROLE, _admin);
+        require(_admin != address(0), ZeroAddress());
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     /// @notice Function to create a campaign contract
@@ -52,9 +52,9 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
 
     /// @notice Function to grant factory role
     /// @param _account Address that will be granted the factory role
-    /// @dev Only callable by ADMIN_ROLE
+    /// @dev Only callable by DEFAULT_ADMIN_ROLE
     function grantFactoryRole(address _account) external {
-        require(hasRole(ADMIN_ROLE, msg.sender), Unauthorized());
+       require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), Unauthorized());
         if (_account == address(0)) {
             revert ZeroAddress();
         }
@@ -70,7 +70,7 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     /// @param _account Address that will be have the factory role removed
     /// @dev Only callable by ADMIN_ROLE
     function revokeFactoryRole(address _account) external {
-        require(hasRole(ADMIN_ROLE, msg.sender), Unauthorized());
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), Unauthorized());
         revokeRole(FACTORY_ROLE, _account);
 
         emit RoleRevoked(_account);
