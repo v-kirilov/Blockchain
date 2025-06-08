@@ -242,7 +242,7 @@ contract PerpsMarket is Ownable, Pausable {
     /// @param positionAmount Current position amount
     /// @param deposited Amount deposited
     /// @return leverageBips Leverage in basis points
-    
+
     function calculatePositionLeverage(uint256 positionAmount, uint256 deposited) private pure returns (uint256) {
         if (deposited >= positionAmount) {
             //no leverage
@@ -254,6 +254,11 @@ contract PerpsMarket is Ownable, Pausable {
         }
         return leverageBips;
     }
+
+    /// @notice Function to calculate a position's profit
+    /// @param position Current position of user
+    /// @param ethPrice Price of ETH in USD
+    /// @return profitInUsd Profit in USD
 
     function calculateProfit(Position memory position, uint256 ethPrice) private pure returns (int256 profitInUsd) {
         uint256 positionEntryPrice = position.positionEntryPrice;
@@ -271,6 +276,10 @@ contract PerpsMarket is Ownable, Pausable {
             profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
         }
     }
+
+    /// @notice Function to calculate fee for a position
+    /// @param positionAmount Amount of the position
+    /// @return uint256 Position's fee
 
     function calculateFeesForPosition(uint256 positionAmount) private view returns (uint256) {
         return (positionAmount * Fee) / TO_BIPS;
@@ -298,6 +307,13 @@ contract PerpsMarket is Ownable, Pausable {
         return positionEntryPrice + ((TO_BIPS * positionEntryPrice) / positionLeverage);
     }
 
+    /// @notice Function to calculate the new position entry price after updating a position
+    /// @param oldAmout Old amout for position
+    /// @param oldPrice Old price at which the position was opened
+    /// @param newAmount New amout for the position
+    /// @param newPrice New price at which the position is updated
+    /// @return newPrice New position's entry price
+
     function calculateUpdatedPositionEntryPrice(uint256 oldAmout, int256 oldPrice, uint256 newAmount, int256 newPrice)
         private
         pure
@@ -309,6 +325,11 @@ contract PerpsMarket is Ownable, Pausable {
     ///-///-///-///
     //  External functions
     ///-///-///-///
+
+    /// @notice Function to withdraw profit from a position
+    /// @notice Can be called only by the position owner
+    /// @dev Position is updated with new properties
+    //! MAKE SURE IT IS NOT LIQUIDATABLE AFTER WITHDRAWING PROFIT
 
     function withdrawProfit() external whenNotPaused {
         uint256 profit = positionProfit[msg.sender];
@@ -365,12 +386,20 @@ contract PerpsMarket is Ownable, Pausable {
         usersWithPositions.add(msg.sender);
     }
 
+    /// @notice Function to set the address of the new campaign contract
+    /// @param  _campaignAddress The address of the new campaign contract
+    /// @dev Callable only by the owner of the contract and sets the new campaign address
+
     function setNewCampaignAddress(address _campaignAddress) external onlyOwner {
         if (_campaignAddress == address(0)) {
             revert ZeroAddress();
         }
         ppCampaign = IPPCampaign(_campaignAddress);
     }
+
+    /// @notice Function to set the address of the new collector address
+    /// @param  _feeCollector The address of the new collector
+    /// @dev Callable only by the owner of the contract and sets the new campaign address
 
     function setNewFeeCollectorAddress(address _feeCollector) external onlyOwner {
         if (_feeCollector == address(0)) {
@@ -379,31 +408,43 @@ contract PerpsMarket is Ownable, Pausable {
         feeCollector = _feeCollector;
     }
 
+    /// @notice Function to get a certain position
+    /// @param  positionAddress The address of the position
+    /// @return Position The position struct of the user
     function getPosition(address positionAddress) external view returns (Position memory) {
         return positions[positionAddress];
     }
 
     /// @notice Returns the users with positions
     /// @dev This is an expensive function , can use up too much gas to fit a block
-    /// @return	All users with positions
+    /// @return address[] All users with positions
     function getUsersWithPositions() external view returns (address[] memory) {
         return usersWithPositions.values();
     }
 
+    /// @notice Function to start a campaign
+    /// @dev Starts a campaign in PPCampaign contract and sets the isCampaignActive flag to true
     function startCampaign() external onlyOwner {
         ppCampaign.startCampaign();
         isCampaignActive = true;
     }
 
+    /// @notice Function to end a campaign
+    /// @dev Ends a campaign in PPCampaign contract and sets the isCampaignActive flag to false
     function endCampaign() external onlyOwner {
         ppCampaign.endCampaign();
         isCampaignActive = false;
     }
 
+    /// @notice Function to blacklist a user
+    /// @param  userToBlackList The address of the position
     function blackListUser(address userToBlackList) external onlyOwner {
         blackListedUsers[userToBlackList] = true;
     }
 
+    /// @notice Function to check if a campaign is active
+    /// @return bool Returns a bool signaling if the campaign is active or not
+    /// @dev Checks if camapign is active and updates the state in this contract
     function checkIfCampaignActive() external returns (bool) {
         if (ppCampaign.isCampaignActive()) {
             isCampaignActive = true;
