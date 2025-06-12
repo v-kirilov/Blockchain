@@ -39,7 +39,6 @@ contract PerpsMarket is Ownable, Pausable {
     ///-///-///-///
     // State Variables
     ///-///-///-///
-    //
     struct Position {
         address user;
         uint256 amountDeposited;
@@ -50,7 +49,7 @@ contract PerpsMarket is Ownable, Pausable {
         uint256 positionLeverage;
     }
 
-    enum PositionType {
+     enum PositionType {
         LONG,
         SHORT
     }
@@ -90,11 +89,11 @@ contract PerpsMarket is Ownable, Pausable {
     /// @param _feeCollector the address where the fees will be collected
     /// @param _campaignAddress the address of the campaign contract
     /// @param _feePrizeToken the address of the prize token that will be used for fees and prizes
-    constructor(address _feeCollector, address _campaignAddress, address _feePrizeToken) Ownable(msg.sender) {
-        if (_feeCollector == address(0) || _campaignAddress == address(0) || _feePrizeToken == address(0)) {
+    constructor(address _feeCollector, address _campaignAddress, address _feePrizeToken, address _priceFeed) Ownable(msg.sender) {
+        if (_feeCollector == address(0) || _campaignAddress == address(0) || _feePrizeToken == address(0) || _priceFeed == address(0)) {
             revert ZeroAddress();
         }
-
+        PriceFeed = VPriceFeed(_priceFeed);
         feeCollector = _feeCollector;
         ppCampaign = IPPCampaign(_campaignAddress);
         feePrizeToken = IERC20(_feePrizeToken);
@@ -106,18 +105,14 @@ contract PerpsMarket is Ownable, Pausable {
 
     /// @notice Function to update a position
     /// @param deposit The amount deposited to update a position
-    /// @param positionType The type of position (LONG or SHORT)
+   
 
-    function updatePositions(uint256 deposit, PositionType positionType) public {
+    function updatePositions(uint256 deposit) public {
         lastUpdatedTimestamp = block.timestamp;
         //Update positions
 
         //Get position
         Position memory position = positions[msg.sender];
-
-        if (position.positionType != positionType) {
-            revert NotPossible();
-        }
 
         //Get price
         int256 ethPrice = PriceFeed.getChainlinkDataFeedLatestAnswer();
@@ -134,7 +129,7 @@ contract PerpsMarket is Ownable, Pausable {
 
         // update  liquidation price
         newLiquidationPrice =
-            calculatePositionLiquidationPrice(oldPositionEntryPrice, position.positionLeverage, positionType);
+            calculatePositionLiquidationPrice(oldPositionEntryPrice, position.positionLeverage, position.positionType);
 
         position.positionLiquidationPrice = newLiquidationPrice;
 
@@ -340,7 +335,8 @@ contract PerpsMarket is Ownable, Pausable {
         require(success, TransferFailed());
     }
 
-    function openPosition(uint256 amount, PositionType positionType) external payable notBLackListed whenNotPaused {
+    function openPosition(uint256 amount, bool isLong) external payable notBLackListed whenNotPaused {
+        PositionType positionType = isLong ? PositionType.LONG : PositionType.SHORT;
         if (msg.value == 0) {
             revert NoETHProvided();
         }
