@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../Interfaces/IPPCampaign.sol";
-
     /// @title PPCampaign
     /// @notice This contract implements a campaign for Perp Points, where users can earn points based on their trading activity.
     /// @dev For every campaign a seperate contract is deployed.
@@ -46,6 +45,8 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     bool public hasCampaignFinished;
     bool public hasCampaignStarted;
 
+    event CampaignAdminSet(address indexed admin);
+
     //When participating in the campaign a user gains points based on his trading, if it's succesfull he gets more points.
     //At the end of a campaign the top 3 users with the most points will get a prize. The prize is a token that is set at the start of the campaign.
     //This token can be used to reduce his trading fees on the platform and other perks.
@@ -75,11 +76,15 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
             revert ZeroAddress();
         }
 
+              if (_campaignAdmin == address(0)) {
+            revert ZeroAddress();
+        }
+
         if (_campaignStartDate < block.timestamp) {
             revert IncorrectCampaignStart();
         }
-
-        _grantRole(CAMPAIGN_ADMIN_ROLE, _campaignAdmin);
+        
+        _grantRole(DEFAULT_ADMIN_ROLE, _campaignAdmin);
         CAMPAIGN_ID = _campaignId;
         Duration = _duration;
         PrizeToken = _prizeToken;
@@ -89,6 +94,14 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     /// @notice Restricts access to campaign admin
     modifier onlyCampaignAdmin() {
         if (!hasRole(CAMPAIGN_ADMIN_ROLE, msg.sender)) {
+            revert Unauthorized();
+        }
+        _;
+    }
+
+        /// @notice Restricts access to campaign admin
+    modifier onlyDefaultAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized();
         }
         _;
@@ -114,7 +127,7 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     /// @param _firstPrizeAmount Amount for the first prize
     /// @param _secondPrizeAmount  Amount for the second prize
     /// @param _thirdPrizeAmount  Amount for the third prize
-    /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and only if the campaign has not finished
+    /// @dev Only callable by DEFAULT_ADMIN_ROLE and only if the campaign has not finished
     function setPrizeAmounts(uint256 _firstPrizeAmount, uint256 _secondPrizeAmount, uint256 _thirdPrizeAmount)
         external
         onlyCampaignAdmin
@@ -197,7 +210,7 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     /// @dev Only callable by CAMPAIGN_ADMIN_ROLE and if the campaign has not finished
     function startCampaign() external onlyCampaignAdmin campaignEnded whenNotPaused {
         if (hasCampaignStarted) {
-            return;
+            revert CampaignAlreadyStarted();
         }
         campaignStartDate = block.timestamp;
         hasCampaignStarted = true;
@@ -258,6 +271,18 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     function isCampaignActive() external view returns (bool) {
         return hasCampaignStarted;
     }
+
+    function setCampaignAdmin(address newAdmin) external onlyDefaultAdmin {
+        if (newAdmin == address(0)) {
+            revert ZeroAddress();
+        }
+        if ( hasRole(DEFAULT_ADMIN_ROLE, newAdmin)) {
+            revert CmapgainAdminCantBeDefaultAdmin();
+        }
+        _grantRole(CAMPAIGN_ADMIN_ROLE, newAdmin);
+        emit CampaignAdminSet(newAdmin);
+    }
+    
 }
 
 //! Pausable!
