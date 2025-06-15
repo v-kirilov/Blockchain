@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 contract VPriceFeedMock {
-
+    uint256 public Price = 5000E8; // Mocked price for testing purposes
     /**
      * Network: Sepolia
      * Aggregator: ETH/USD
@@ -16,11 +16,15 @@ contract VPriceFeedMock {
     /**
      * Returns the latest answer.
      */
-    function getChainlinkDataFeedLatestAnswer() public pure returns (int256) {
-        return 5000E8; // Mocked value for testing purposes
+    function getChainlinkDataFeedLatestAnswer() public view returns (uint256) {
+        return Price; // Mocked value for testing purposes
     }
 
     function getDecimals()public pure returns (uint8) {
         return 8;
+    }
+
+    function setPrice(uint256 _price) public {
+        Price = _price; // Allows setting a new mocked price
     }
 }
