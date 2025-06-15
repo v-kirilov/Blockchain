@@ -16,6 +16,8 @@ interface IPPCampaign {
     error PrizeCannotBeZero();
     error CampaignHasFinished();
     error CampaignNotStarted();
+    error CampaignAlreadyStarted();
+    error CmapgainAdminCantBeDefaultAdmin();
 
     ///-///-///-///
     // Events
