@@ -45,8 +45,13 @@ contract PerpsMarketTest is Test {
 
         vm.prank(factoryMan);
         ppCampaign = PPCampaign(ppFactory.createPerpCampaignContract(10 days, address(ppToken), admin, block.timestamp));
-        vm.prank(admin);
+        vm.startPrank(admin);
         perpsMarket = new PerpsMarket(feeCollector, address(ppCampaign),address(ppToken),address(vPriceFeedMock));
+        ppCampaign.setCampaignAdmin(address(perpsMarket));
+    }
+
+        function test_Empty() public {
+            console2.log(admin);
     }
 
     function test_openPositionRevertsNoMsgValue() public {
@@ -72,11 +77,40 @@ contract PerpsMarketTest is Test {
         perpsMarket.openPosition{value:1 ether}(amount, true);
     }
 
-            function test_openPositionSuccess() public {
+    function test_openPositionSuccess() public {
         vm.deal(alice, INITIAL_BALANCE);
         vm.startPrank(alice);
         uint256 amount = 2 ether;
         //vm.expectRevert(PositionAmountIsTooSmall.selector);
         perpsMarket.openPosition{value:1 ether}(amount, true);
+    }
+
+        function test_startCampaignRevertsIfNotAdmin() public {
+        vm.startPrank(bob);
+        vm.expectRevert();
+        perpsMarket.startCampaign();
+    }
+
+        function test_startCampaignAlreadyStarted() public {
+        vm.startPrank(admin);
+        perpsMarket.startCampaign();
+       assertTrue(ppCampaign.hasCampaignStarted());
+       console2.log(ppCampaign.hasCampaignStarted());
+        vm.expectRevert();
+        perpsMarket.startCampaign();
+        vm.stopPrank();
+    }
+
+    function test_startCampaignSuccess() public {
+        vm.startPrank(admin);
+        perpsMarket.startCampaign();
+        assertTrue(ppCampaign.hasCampaignStarted());
+        vm.stopPrank();
+    }
+
+        function test_blackListUserSuccess() public {
+        vm.startPrank(admin);
+        perpsMarket.blackListUser(bob);
+        assertTrue(perpsMarket.blackListedUsers(bob));
     }
 }
