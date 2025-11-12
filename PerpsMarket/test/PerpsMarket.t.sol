@@ -50,8 +50,11 @@ contract PerpsMarketTest is Test {
         ppCampaign.setCampaignAdmin(address(perpsMarket));
     }
 
-        function test_Empty() public {
-            console2.log(admin);
+    function aliceOPpenPositionSuccess() public {
+        vm.deal(alice, INITIAL_BALANCE);
+        vm.startPrank(alice);
+        uint256 amount = 2 ether;
+        perpsMarket.openPosition{value:1 ether}(amount, true);
     }
 
     function test_openPositionRevertsNoMsgValue() public {
@@ -81,7 +84,6 @@ contract PerpsMarketTest is Test {
         vm.deal(alice, INITIAL_BALANCE);
         vm.startPrank(alice);
         uint256 amount = 2 ether;
-        //vm.expectRevert(PositionAmountIsTooSmall.selector);
         perpsMarket.openPosition{value:1 ether}(amount, true);
     }
 
@@ -112,5 +114,29 @@ contract PerpsMarketTest is Test {
         vm.startPrank(admin);
         perpsMarket.blackListUser(bob);
         assertTrue(perpsMarket.blackListedUsers(bob));
+    }
+
+    function test_closePositionRevertsPositionNotExisting() public {
+        vm.startPrank(bob);
+        vm.expectRevert(PositionNotExisting.selector);
+        perpsMarket.closePosition();
+    }
+
+        function test_closePositionRevertsNoProfit() public {
+            aliceOPpenPositionSuccess();
+        vm.startPrank(alice);
+        vm.expectRevert(NoProfit.selector);
+        perpsMarket.closePosition();
+    }
+
+    function test_blackListedUserCannotOpenPosition() public {
+        vm.startPrank(admin);
+        perpsMarket.blackListUser(bob);
+        vm.stopPrank();
+        vm.deal(bob, INITIAL_BALANCE);
+        vm.startPrank(bob);
+        uint256 amount = 2 ether;
+        vm.expectRevert(UserBlackListed.selector);
+        perpsMarket.openPosition{value:1 ether}(amount, true);
     }
 }
