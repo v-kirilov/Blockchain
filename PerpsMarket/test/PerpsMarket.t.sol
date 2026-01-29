@@ -87,6 +87,13 @@ contract PerpsMarketTest is Test {
         perpsMarket.openPosition{value:1 ether}(amount, true);
     }
 
+        function test_openWithOneX() public {
+        vm.deal(alice, INITIAL_BALANCE);
+        vm.startPrank(alice);
+        uint256 amount =1 ether;
+        perpsMarket.openPosition{value:1 ether}(amount, true);
+    }
+
         function test_startCampaignRevertsIfNotAdmin() public {
         vm.startPrank(bob);
         vm.expectRevert();

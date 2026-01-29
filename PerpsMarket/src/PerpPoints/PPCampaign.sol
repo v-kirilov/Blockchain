@@ -24,6 +24,7 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     uint32 private immutable CAMPAIGN_ID;
     uint192 private immutable Duration;
     address private immutable PrizeToken;
+    address public CampaignAdmin;
 
     ///-///-///-///
     // Public variables
@@ -89,6 +90,7 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
         Duration = _duration;
         PrizeToken = _prizeToken;
         campaignStartDate = _campaignStartDate;
+        CampaignAdmin = _campaignAdmin;
     }
 
     /// @notice Restricts access to campaign admin

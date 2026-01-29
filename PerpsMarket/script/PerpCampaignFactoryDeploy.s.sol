@@ -21,3 +21,4 @@ contract DeployPerpCampaignFactory is Script {
 // forge script --chain sepolia script/PerpCampaignFactoryDeploy.s.sol:DeployPerpCampaignFactory --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv --interactives 1
 // DEPLOYED at 0x281267e0998a1Bb3f91ec0d9dFaae3fc98D65179
      
+//deployed ppcampaign 0x2B75032D92C780f13Fc0B90d8f649C2e2981994d
