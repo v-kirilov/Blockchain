@@ -10,13 +10,12 @@ contract PCampaignDeploy is Script {
     uint32 public campaingId = 1;
     address public prizeToken = 0x63486d0a5d1CCae7a8EC7EE02D4e581E8604e872;
     address public campaignAdmin = 0x221f314Bc31e5589F546648d3ab20b3dEB1CD8B8;
-    uint256 public campaignStartDate = 1769787798;
     
      function setUp() public {}
 
     function run() external {
         vm.startBroadcast();
-        pPCampaign = new PPCampaign(duration , campaingId, prizeToken, campaignAdmin, campaignStartDate);
+        pPCampaign = new PPCampaign(duration , prizeToken, campaignAdmin);
         vm.stopBroadcast();
     }
 }

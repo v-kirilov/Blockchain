@@ -12,7 +12,7 @@ interface IPerpCampaignFactory {
     ///-///-///-///
     // Events
     ///-///-///-///
-    event CampaignCreated(uint32 duration, address indexed prizeToken, address indexed campaignAdmin, uint256 campaignStartDate,address indexed campaignAddress);
+    event CampaignCreated(uint32 duration, address indexed prizeToken, address indexed campaignAdmin,address indexed campaignAddress);
     event RoleGranted(address indexed grantedAdress);
     event RoleRevoked(address indexed revokedAddress);
 }
