@@ -16,7 +16,7 @@ contract PerpsMarketDeploy is Script {
      function setUp() public {}
     function run() external {
         vm.startBroadcast();
-        perpsMarket = new PerpsMarket(feeCollector, campaignAddress,feePrizeToken,address(vPriceFeedAddress)); //0xfb1661217E723b0C83ddFe9D3b93956BA3F96320
+        perpsMarket = new PerpsMarket(feeCollector, campaignAddress,feePrizeToken,address(vPriceFeedAddress));
 
         //perpsMarket = new PerpsMarket(feeCollector, campaignAddress, feePrizeToken, priceFeed);
         vm.stopBroadcast();
@@ -25,6 +25,3 @@ contract PerpsMarketDeploy is Script {
 // source .env
 //forge script --chain sepolia script/PerpsMarketDeploy.s.sol:PerpsMarketDeploy --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv --interactives 1
 
-
-// 0x81e376E54d554eB7C68bf392C28F003f07f08e0a
-// 0x6C028f87effB2caf98d886cd50B6ff189c1e0243

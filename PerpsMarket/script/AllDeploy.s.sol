@@ -14,6 +14,7 @@ contract AllDeploy is Script {
     PerpsMarket public perpsMarket;
     address public feeCollector =    0x2B75032D92C780f13Fc0B90d8f649C2e2981994d;
     PerpCampaignFactory public ppFactory;
+    address public feePrizeToken =   0x63486d0a5d1CCae7a8EC7EE02D4e581E8604e872;
 
     uint32 public duration = 29 days;
     address public prizeToken = 0x63486d0a5d1CCae7a8EC7EE02D4e581E8604e872;
@@ -25,10 +26,20 @@ contract AllDeploy is Script {
 
         ppCampaign = new PPCampaign(duration, prizeToken, admin);  
 
-        perpsMarket = new PerpsMarket(feeCollector, 0xA6829D9C25CAcbFbCE92B53b85c7171dd7439450,vPriceFeedAddress,address(vPriceFeedAddress)); //0xfb1661217E723b0C83ddFe9D3b93956BA3F96320
+    //perpsMarket = new PerpsMarket(feeCollector, campaignAddress, feePrizeToken, priceFeed);
+        perpsMarket = new PerpsMarket(feeCollector,address(ppCampaign)  ,feePrizeToken,address(vPriceFeedAddress)); //
+        ppCampaign.setCampaignAdmin(address(perpsMarket));
         vm.stopBroadcast();
     }
+
 }
+
+    // Prereequisites:
+    // 1. Grant CAMPAIGN_ADMIN_ROLE to PerpsMarket contract in the PPCampaign contract
+    // 2. Give allowance to PerpsMarket contract in the PPToken contract for user.
+
+// ppcampaign 0xC0b24e892529b871aA304C03B41BCdf49B45544C
+// Perps 0xB21Eaa5b8B0DaAA086d37EE274c2Ef0F17bdE0f1
 
 // source .env
 // forge script --chain sepolia script/AllDeploy.s.sol:AllDeploy --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv --interactives 1
