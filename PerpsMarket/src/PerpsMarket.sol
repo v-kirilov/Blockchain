@@ -151,6 +151,7 @@ contract PerpsMarket is Ownable, Pausable {
     function liquidatePosition(address positionOwner) public {
         //Get position
         Position memory position = positions[positionOwner];
+        address liquidator = msg.sender;
         if (position.positionEntryPrice == 0) {
             revert PositionNotExisting();
         }
@@ -164,7 +165,7 @@ contract PerpsMarket is Ownable, Pausable {
         }
         // Give half of fee to liquidator
         uint256 fees = calculateFeesForPosition(position.positionAmount);
-        positionProfit[msg.sender] += uint256(fees / 2);
+        positionProfit[liquidator] += uint256(fees / 2);
 
         //delete position
         usersWithPositions.remove(positionOwner);
@@ -177,50 +178,86 @@ contract PerpsMarket is Ownable, Pausable {
             : accumulatedShortPositionAmount -= position.positionAmount;
     }
 
+    function isLiquidated(Position memory position, uint256 currentEthPrice) internal pure returns (bool) {
+        bool isGettingLiquidated;
+        if (position.positionType == PositionType.LONG) {
+            if (currentEthPrice <= position.positionLiquidationPrice) {
+                isGettingLiquidated = true;
+            }
+        } else {
+            if (currentEthPrice >= position.positionLiquidationPrice) {
+                isGettingLiquidated = true;
+            }
+        }
+        return isGettingLiquidated;
+    }
+
     /// @notice Function to close a position
     /// @notice Called by the position owner
 
     function closePosition() public {
-        if (!usersWithPositions.contains(msg.sender)) {
+        address user = msg.sender;
+        if (!usersWithPositions.contains(user)) {
             revert PositionNotExisting();
         }
         //get price
         uint256 ethPrice = uint256(PriceFeed.getChainlinkDataFeedLatestAnswer());
 
         //get position
-        Position memory position = positions[msg.sender];
+        Position memory position = positions[user];
 
         if (position.positionAmount == 0) {
             revert PositionNotExisting();
         }
         //calculate profit
-        int256 profitBeforeFees = calculateProfit(position, ethPrice);
-        if (profitBeforeFees <= 0) {
-            revert NoProfit();
-        }
-
-        //calculate fees
+        int256 profitInUsdBeforeFees = calculateProfit(position, ethPrice);
         uint256 fees = calculateFeesForPosition(position.positionAmount);
 
         // Pay with prize token if user has enough balance or pay with ETH
         uint256 profit;
-        if (feePrizeToken.balanceOf(msg.sender) > fees * ethPrice / 1e18) {
-            feePrizeToken.transferFrom(msg.sender, feeCollector, fees * ethPrice / 1e18);
-            profit = uint256(profitBeforeFees);
+        uint256 amountFeesToPayWithPrizeToken = (fees * ethPrice) / 1e24;
+        uint256 userBalanceInPPToken = feePrizeToken.balanceOf(user);
+        uint256 marketAllowance = feePrizeToken.allowance(user, address(this));
+        bool isWin;
+        if (profitInUsdBeforeFees <= 0) {
+            // liquidated
+            if (isLiquidated(position, ethPrice)) {
+                position.positionAmount = 0;
+                position.amountDeposited = 0;
+                position.positionEntryPrice = 0;
+                position.positionLiquidationPrice = 0;
+                position.positionLeverage = 0;
+                positions[user] = position;
+                return;
+            }else {
+                // Calculate the loss and reduce from deposited amount
+                profit = uint256(-profitInUsdBeforeFees);
+                isWin = false;
+            }
+        }else {
+            profit = uint256(profitInUsdBeforeFees);
+            isWin = true;
+        }
+
+        if (userBalanceInPPToken > amountFeesToPayWithPrizeToken && marketAllowance >= amountFeesToPayWithPrizeToken) {
+            // Pay fee with token
+            feePrizeToken.transferFrom(user, feeCollector, amountFeesToPayWithPrizeToken);
         } else {
+            // Pay fee with ETH
             accumulatedFees += fees;
-            profit = uint256(profitBeforeFees) - fees;
+            profit = uint256(profitInUsdBeforeFees) - fees;
         }
 
         //Remove user from positions
-        usersWithPositions.remove(msg.sender);
+        usersWithPositions.remove(user);
 
         //Save profit in positionProfit mapping
-        if (profit > 0) {
-            positionProfit[msg.sender] += uint256(profit);
-        }
-        if (isCampaignActive) {
-            ppCampaign.upSertParticipant(msg.sender, profit);
+        // Save profit in mapping , if it is loquidated , dont save profit, close position only
+        
+        positionProfit[user] += profit;
+        
+        if (isCampaignActive && isWin) {
+            ppCampaign.upSertParticipant(user, profit);
         }
 
         position.positionAmount = 0;
@@ -228,7 +265,7 @@ contract PerpsMarket is Ownable, Pausable {
         position.positionEntryPrice = 0;
         position.positionLiquidationPrice = 0;
         position.positionLeverage = 0;
-        positions[msg.sender] = position;
+        positions[user] = position;
 
         //Reduce accumulated position
         position.positionType == PositionType.LONG
@@ -270,12 +307,13 @@ contract PerpsMarket is Ownable, Pausable {
             } else {
                 profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
             }
-        }
+        }else {
         //short
         if (positionEntryPrice < ethPrice) {
             profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
         } else {
             profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+        }
         }
     }
 
@@ -334,11 +372,12 @@ contract PerpsMarket is Ownable, Pausable {
     //! MAKE SURE IT IS NOT LIQUIDATABLE AFTER WITHDRAWING PROFIT
 
     function withdrawProfit() external whenNotPaused {
-        uint256 profit = positionProfit[msg.sender];
+        address user = msg.sender;
+        uint256 profit = positionProfit[user];
         require(profit > 0, NoProfit());
-        positionProfit[msg.sender] = 0;
+        positionProfit[user] = 0;
 
-        (bool success,) = msg.sender.call{value: uint256(profit)}("");
+        (bool success,) = user.call{value: uint256(profit)}("");
         require(success, TransferFailed());
     }
 
