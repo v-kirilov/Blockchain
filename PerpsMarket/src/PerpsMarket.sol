@@ -25,12 +25,13 @@ contract PerpsMarket is Ownable, Pausable {
     error NotPossible();
     error UserBlackListed();
     error NoETHProvided();
+    error PositionAmountIsTooSmall();
     error LeverageExceded();
     error PositionNotExisting();
-    error PositionAmountIsTooSmall();
     error NoProfit();
     error TransferFailed();
     error ZeroAddress();
+    error CampaignNotSet();
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -57,8 +58,8 @@ contract PerpsMarket is Ownable, Pausable {
     VPriceFeed public PriceFeed;
     uint32 private constant MAX_BIPS_LEVERAGE = 30_000; // 3x
     uint32 private constant TO_BIPS = 10_000;
-    uint32 public Fee = 1000; // 1%
-    uint64 public constant MIN_POSITION_AMOUNT = 0.01 ether;
+    uint32 public Fee = 100; // 1%
+    uint64 public constant MIN_POSITION_AMOUNT = 0.001 ether;
 
     uint256 private accumulatedFees;
     uint256 public lastUpdatedTimestamp;
@@ -76,6 +77,12 @@ contract PerpsMarket is Ownable, Pausable {
     mapping(address user => uint256 profit) public positionProfit;
 
     ///-///-///-///
+    // Events
+    ///-///-///-///
+    event PositionOpened(address indexed user, uint256 indexed deposited,uint256 indexed positionAmount, bool isLong);
+
+
+    ///-///-///-///
     // Modifiers
     ///-///-///-///
     modifier notBLackListed() {
@@ -90,7 +97,7 @@ contract PerpsMarket is Ownable, Pausable {
     /// @param _campaignAddress the address of the campaign contract
     /// @param _feePrizeToken the address of the prize token that will be used for fees and prizes
     constructor(address _feeCollector, address _campaignAddress, address _feePrizeToken, address _priceFeed) Ownable(msg.sender) {
-        if (_feeCollector == address(0) || _campaignAddress == address(0) || _feePrizeToken == address(0) || _priceFeed == address(0)) {
+        if (_feeCollector == address(0) || _feePrizeToken == address(0) || _priceFeed == address(0)) {
             revert ZeroAddress();
         }
         PriceFeed = VPriceFeed(_priceFeed);
@@ -337,7 +344,10 @@ contract PerpsMarket is Ownable, Pausable {
 
     function openPosition(uint256 amount, bool isLong) external payable notBLackListed whenNotPaused {
         PositionType positionType = isLong ? PositionType.LONG : PositionType.SHORT;
-        if (msg.value == 0) {
+        uint256 amountDeposited = msg.value;
+        address depositor = msg.sender;
+
+        if (amountDeposited == 0) {
             revert NoETHProvided();
         }
         if (amount < MIN_POSITION_AMOUNT) {
@@ -345,25 +355,34 @@ contract PerpsMarket is Ownable, Pausable {
         }
         //Fetch ETH price
         uint256 ethPrice = uint256(PriceFeed.getChainlinkDataFeedLatestAnswer());
-
+     
         // calculate fees
         uint256 amountDepositedMinusFees;
-        uint256 fees = calculateFeesForPosition(amount);
+        uint256 fees = calculateFeesForPosition(amount); 
         // Pay with prize token if user has enough balance or pay with ETH
-        if (feePrizeToken.balanceOf(msg.sender) > fees * ethPrice / 1e18) {
-            feePrizeToken.transferFrom(msg.sender, feeCollector, fees * ethPrice / 1e18);
-            amountDepositedMinusFees = msg.value;
-        } else {
-            accumulatedFees += fees;
-            amountDepositedMinusFees = msg.value - fees;
-        }
+        uint256 userBalance = feePrizeToken.balanceOf(depositor);
+
+        uint256 marketAllowance = feePrizeToken.allowance(depositor, address(this));
+
+        uint256 amountToPayWithPrizeToken = (fees * ethPrice) / 1e24;
+        bool isSuccess;
+        if (userBalance > amountToPayWithPrizeToken && marketAllowance >= amountToPayWithPrizeToken) {
+           isSuccess = feePrizeToken.transferFrom(depositor, feeCollector, amountToPayWithPrizeToken);
+        } 
+
+         if(isSuccess){
+          amountDepositedMinusFees = amountDeposited;
+         }else {
+          accumulatedFees += fees;
+          amountDepositedMinusFees = amountDeposited - fees;
+         }
 
         // Check position size
         uint256 leverage = calculatePositionLeverage(amount, amountDepositedMinusFees);
         uint256 positionLiquidationPrice = calculatePositionLiquidationPrice(ethPrice, leverage, positionType);
 
         Position memory newPosition = Position({
-            user: msg.sender,
+            user: depositor,
             amountDeposited: amountDepositedMinusFees,
             positionAmount: amount,
             positionType: positionType,
@@ -378,8 +397,10 @@ contract PerpsMarket is Ownable, Pausable {
             : accumulatedShortPositionAmount += amount;
 
         //Save position
-        positions[msg.sender] = newPosition;
-        usersWithPositions.add(msg.sender);
+        positions[depositor] = newPosition;
+        usersWithPositions.add(depositor);
+
+        emit PositionOpened(depositor, amountDeposited, amount, isLong);
     }
 
     /// @notice Function to set the address of the new campaign contract
@@ -421,6 +442,9 @@ contract PerpsMarket is Ownable, Pausable {
     /// @notice Function to start a campaign
     /// @dev Starts a campaign in PPCampaign contract and sets the isCampaignActive flag to true
     function startCampaign() external onlyOwner {
+        if(address(ppCampaign) == address(0)){
+            revert CampaignNotSet();
+        }
         ppCampaign.startCampaign();
         isCampaignActive = true;
     }
@@ -428,6 +452,9 @@ contract PerpsMarket is Ownable, Pausable {
     /// @notice Function to end a campaign
     /// @dev Ends a campaign in PPCampaign contract and sets the isCampaignActive flag to false
     function endCampaign() external onlyOwner {
+        if(address(ppCampaign) == address(0)){
+            revert CampaignNotSet();
+        }
         ppCampaign.endCampaign();
         isCampaignActive = false;
     }
@@ -442,6 +469,9 @@ contract PerpsMarket is Ownable, Pausable {
     /// @return bool Returns a bool signaling if the campaign is active or not
     /// @dev Checks if camapign is active and updates the state in this contract
     function checkIfCampaignActive() external returns (bool) {
+        if(address(ppCampaign) == address(0)){
+            revert CampaignNotSet();
+        }
         if (ppCampaign.isCampaignActive()) {
             isCampaignActive = true;
             return true;
