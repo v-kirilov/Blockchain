@@ -27,26 +27,24 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     /// @param duration Duration for the current campaigns
     /// @param prizeToken  Token address that is set as the prize token
     /// @param campaignAdmin  Campaign admin address
-    /// @param campaignStartDate  Campaign start date
     /// @dev Only callable by FACTORY_ROLE
     function createPerpCampaignContract(
         uint32 duration,
         address prizeToken,
-        address campaignAdmin,
-        uint256 campaignStartDate
+        address campaignAdmin
     ) external returns (address) {
         require(hasRole(FACTORY_ROLE, msg.sender), Unauthorized());
 
         campaignId++;
         uint32 newCampaignId = campaignId;
 
-        bytes32 salt = keccak256(abi.encode(duration, newCampaignId, prizeToken, campaignAdmin, campaignStartDate));
-        bytes memory consArguments = abi.encode(duration, newCampaignId, prizeToken, campaignAdmin, campaignStartDate);
+        bytes32 salt = keccak256(abi.encode(duration, newCampaignId, prizeToken, campaignAdmin ));
+        bytes memory consArguments = abi.encode(duration, newCampaignId, prizeToken, campaignAdmin);
         bytes memory bytecode = abi.encodePacked(type(PPCampaign).creationCode, consArguments);
         address campaignAddress = Create2.deploy(0, salt, bytecode);
         //deploy
 
-        emit CampaignCreated(duration, prizeToken, campaignAdmin, campaignStartDate, campaignAddress);
+        emit CampaignCreated(duration, prizeToken, campaignAdmin, campaignAddress);
         return campaignAddress;
     }
 
