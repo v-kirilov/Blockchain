@@ -21,8 +21,8 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     // Immutables
     ///-///-///-///
     uint32 public immutable MAX_CAMPAIGN_DURATION = 30 days;
-    uint32 private immutable CAMPAIGN_ID;
     uint192 private immutable Duration;
+    uint256 private immutable CAMPAIGN_ID;
     address private immutable PrizeToken;
     address public CampaignAdmin;
 
@@ -61,10 +61,8 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
 
     constructor(
         uint32 _duration,
-        uint32 _campaignId,
         address _prizeToken,
-        address _campaignAdmin,
-        uint256 _campaignStartDate
+        address _campaignAdmin
     ) {
         if (_duration == 0) {
             revert ZeroDuration();
@@ -80,16 +78,11 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
               if (_campaignAdmin == address(0)) {
             revert ZeroAddress();
         }
-
-        if (_campaignStartDate < block.timestamp) {
-            revert IncorrectCampaignStart();
-        }
         
         _grantRole(DEFAULT_ADMIN_ROLE, _campaignAdmin);
-        CAMPAIGN_ID = _campaignId;
+        CAMPAIGN_ID = block.timestamp;
         Duration = _duration;
         PrizeToken = _prizeToken;
-        campaignStartDate = _campaignStartDate;
         CampaignAdmin = _campaignAdmin;
     }
 
