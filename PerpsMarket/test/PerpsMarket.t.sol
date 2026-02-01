@@ -37,15 +37,16 @@ contract PerpsMarketTest is Test {
 
     function setUp() public {
         vPriceFeedMock = new VPriceFeedMock();
-        ppFactory = new PerpCampaignFactory(admin);
+      //  ppFactory = new PerpCampaignFactory(admin);
         vm.startPrank(admin);
-        ppFactory.grantFactoryRole(factoryMan);
+       // ppFactory.grantFactoryRole(factoryMan);
         ppToken = new PPToken("Perp Points Token", "PPT");
         vm.stopPrank();
 
-        vm.prank(factoryMan);
-        ppCampaign = PPCampaign(ppFactory.createPerpCampaignContract(10 days, address(ppToken), admin, block.timestamp));
+       // vm.prank(factoryMan);
+       // ppCampaign = PPCampaign(ppFactory.createPerpCampaignContract(10 days, address(ppToken), admin, block.timestamp));
         vm.startPrank(admin);
+        ppCampaign = new PPCampaign(10 days, address(ppToken), admin);
         perpsMarket = new PerpsMarket(feeCollector, address(ppCampaign),address(ppToken),address(vPriceFeedMock));
         ppCampaign.setCampaignAdmin(address(perpsMarket));
     }
@@ -53,8 +54,20 @@ contract PerpsMarketTest is Test {
     function aliceOPpenPositionSuccess() public {
         vm.deal(alice, INITIAL_BALANCE);
         vm.startPrank(alice);
-        uint256 amount = 2 ether;
-        perpsMarket.openPosition{value:1 ether}(amount, true);
+        uint256 amount = 10000000000;
+        perpsMarket.openPosition{value:10000000000}(amount, true);
+    }
+
+   function test_openPositionSuccess() public {
+        vm.deal(alice, INITIAL_BALANCE);
+        vm.startPrank(alice);
+        uint256 aliceGasBefore = gasleft();
+
+        uint256 amount = 1000000000000000;
+        perpsMarket.openPosition{value:1000000000000000}(amount, true);
+        uint256 aliceGasAfter = gasleft();
+        console2.log("Gas used by Alice to open position: ", aliceGasBefore - aliceGasAfter);
+
     }
 
     function test_openPositionRevertsNoMsgValue() public {
@@ -67,7 +80,7 @@ contract PerpsMarketTest is Test {
         function test_openPositionRevertsLessThanMinValue() public {
         vm.deal(alice, INITIAL_BALANCE);
         vm.startPrank(alice);
-        uint256 amount = 0.001 ether;
+        uint256 amount = 0.0001 ether;
         vm.expectRevert(PositionAmountIsTooSmall.selector);
         perpsMarket.openPosition{value:0.001 ether}(amount, true);
     }
@@ -80,12 +93,7 @@ contract PerpsMarketTest is Test {
         perpsMarket.openPosition{value:1 ether}(amount, true);
     }
 
-    function test_openPositionSuccess() public {
-        vm.deal(alice, INITIAL_BALANCE);
-        vm.startPrank(alice);
-        uint256 amount = 2 ether;
-        perpsMarket.openPosition{value:1 ether}(amount, true);
-    }
+ 
 
         function test_openWithOneX() public {
         vm.deal(alice, INITIAL_BALANCE);
