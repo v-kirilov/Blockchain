@@ -6,10 +6,10 @@ import "@openzeppelin/contracts/utils/Create2.sol";
 import "../Interfaces/IPerpCampaignFactory.sol";
 import "./PPCampaign.sol";
 
-    /// @title PerpCampaignFactory
-    /// @notice This contract is responsible for creating Campaign contracts.
-    /// @dev For every campaign a separate contract is deployed.
-    /// @dev A contract is deployed by the address with FACTORY_ROLE.
+/// @title PerpCampaignFactory
+/// @notice This contract is responsible for creating Campaign contracts.
+/// @dev For every campaign a separate contract is deployed.
+/// @dev A contract is deployed by the address with FACTORY_ROLE.
 
 contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     uint32 private campaignId;
@@ -28,17 +28,16 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     /// @param prizeToken  Token address that is set as the prize token
     /// @param campaignAdmin  Campaign admin address
     /// @dev Only callable by FACTORY_ROLE
-    function createPerpCampaignContract(
-        uint32 duration,
-        address prizeToken,
-        address campaignAdmin
-    ) external returns (address) {
+    function createPerpCampaignContract(uint32 duration, address prizeToken, address campaignAdmin)
+        external
+        returns (address)
+    {
         require(hasRole(FACTORY_ROLE, msg.sender), Unauthorized());
 
         campaignId++;
         uint32 newCampaignId = campaignId;
 
-        bytes32 salt = keccak256(abi.encode(duration, newCampaignId, prizeToken, campaignAdmin ));
+        bytes32 salt = keccak256(abi.encode(duration, newCampaignId, prizeToken, campaignAdmin));
         bytes memory consArguments = abi.encode(duration, newCampaignId, prizeToken, campaignAdmin);
         bytes memory bytecode = abi.encodePacked(type(PPCampaign).creationCode, consArguments);
         address campaignAddress = Create2.deploy(0, salt, bytecode);
@@ -52,7 +51,7 @@ contract PerpCampaignFactory is AccessControl, IPerpCampaignFactory {
     /// @param _account Address that will be granted the factory role
     /// @dev Only callable by DEFAULT_ADMIN_ROLE
     function grantFactoryRole(address _account) external {
-       require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), Unauthorized());
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), Unauthorized());
         if (_account == address(0)) {
             revert ZeroAddress();
         }
