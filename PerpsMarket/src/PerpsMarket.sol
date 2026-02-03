@@ -4,10 +4,10 @@ pragma solidity ^0.8.28;
 /*=========================================================================*
  * ██████╗ ███████╗██████╗ ██████╗ ███████╗    ███╗   ███╗██╗  ██╗████████╗
  * ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝    ████╗ ████║██║ ██╔╝╚══██╔══╝
- * ██████╔╝█████╗  ██████╔╝██████╔╝███████╗    ██╔████╔██║█████╔╝    ██║   
- * ██╔═══╝ ██╔══╝  ██╔══██╗██╔═══╝ ╚════██║    ██║╚██╔╝██║██╔═██╗    ██║   
- * ██║     ███████╗██║  ██║██║     ███████║    ██║ ╚═╝ ██║██║  ██╗   ██║   
- * ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝     ╚══════╝    ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   
+ * ██████╔╝█████╗  ██████╔╝██████╔╝███████╗    ██╔████╔██║█████╔╝    ██║
+ * ██╔═══╝ ██╔══╝  ██╔══██╗██╔═══╝ ╚════██║    ██║╚██╔╝██║██╔═██╗    ██║
+ * ██║     ███████╗██║  ██║██║     ███████║    ██║ ╚═╝ ██║██║  ██╗   ██║
+ * ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝     ╚══════╝    ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝
  * A Decentralized Perpetual Exchange Market
  *=========================================================================*/
 
@@ -50,7 +50,7 @@ contract PerpsMarket is Ownable, Pausable {
         uint256 positionLeverage;
     }
 
-     enum PositionType {
+    enum PositionType {
         LONG,
         SHORT
     }
@@ -79,8 +79,7 @@ contract PerpsMarket is Ownable, Pausable {
     ///-///-///-///
     // Events
     ///-///-///-///
-    event PositionOpened(address indexed user, uint256 indexed deposited,uint256 indexed positionAmount, bool isLong);
-
+    event PositionOpened(address indexed user, uint256 indexed deposited, uint256 indexed positionAmount, bool isLong);
 
     ///-///-///-///
     // Modifiers
@@ -96,7 +95,9 @@ contract PerpsMarket is Ownable, Pausable {
     /// @param _feeCollector the address where the fees will be collected
     /// @param _campaignAddress the address of the campaign contract
     /// @param _feePrizeToken the address of the prize token that will be used for fees and prizes
-    constructor(address _feeCollector, address _campaignAddress, address _feePrizeToken, address _priceFeed) Ownable(msg.sender) {
+    constructor(address _feeCollector, address _campaignAddress, address _feePrizeToken, address _priceFeed)
+        Ownable(msg.sender)
+    {
         if (_feeCollector == address(0) || _feePrizeToken == address(0) || _priceFeed == address(0)) {
             revert ZeroAddress();
         }
@@ -112,7 +113,6 @@ contract PerpsMarket is Ownable, Pausable {
 
     /// @notice Function to update a position
     /// @param deposit The amount deposited to update a position
-   
 
     function updatePositions(uint256 deposit) public {
         lastUpdatedTimestamp = block.timestamp;
@@ -210,16 +210,15 @@ contract PerpsMarket is Ownable, Pausable {
             revert PositionNotExisting();
         }
         //calculate profit
-        int256 profitInUsdBeforeFees = calculateProfit(position, ethPrice);
-        uint256 fees = calculateFeesForPosition(position.positionAmount);
+        int256 profitInETHBeforeFees = calculateProfitInETH(position, ethPrice);(position, ethPrice);
 
         // Pay with prize token if user has enough balance or pay with ETH
         uint256 profit;
-        uint256 amountFeesToPayWithPrizeToken = (fees * ethPrice) / 1e24;
         uint256 userBalanceInPPToken = feePrizeToken.balanceOf(user);
         uint256 marketAllowance = feePrizeToken.allowance(user, address(this));
+
         bool isWin;
-        if (profitInUsdBeforeFees <= 0) {
+        if (profitInETHBeforeFees <= 0) {
             // liquidated
             if (isLiquidated(position, ethPrice)) {
                 position.positionAmount = 0;
@@ -229,15 +228,19 @@ contract PerpsMarket is Ownable, Pausable {
                 position.positionLeverage = 0;
                 positions[user] = position;
                 return;
-            }else {
+            } else {
                 // Calculate the loss and reduce from deposited amount
-                profit = uint256(-profitInUsdBeforeFees);
+                profit = uint256(-profitInETHBeforeFees);
                 isWin = false;
             }
-        }else {
-            profit = uint256(profitInUsdBeforeFees);
+        } else {
+            profit = uint256(profitInETHBeforeFees);
             isWin = true;
         }
+
+        uint256 fees = calculateFeesForPosition(profit);
+        uint256 amountFeesToPayWithPrizeToken = (fees * ethPrice) / 1e24;
+
 
         if (userBalanceInPPToken > amountFeesToPayWithPrizeToken && marketAllowance >= amountFeesToPayWithPrizeToken) {
             // Pay fee with token
@@ -245,7 +248,7 @@ contract PerpsMarket is Ownable, Pausable {
         } else {
             // Pay fee with ETH
             accumulatedFees += fees;
-            profit = uint256(profitInUsdBeforeFees) - fees;
+            profit = uint256(profitInETHBeforeFees) - fees;
         }
 
         //Remove user from positions
@@ -253,9 +256,9 @@ contract PerpsMarket is Ownable, Pausable {
 
         //Save profit in positionProfit mapping
         // Save profit in mapping , if it is loquidated , dont save profit, close position only
-        
+
         positionProfit[user] += profit;
-        
+
         if (isCampaignActive && isWin) {
             ppCampaign.upSertParticipant(user, profit);
         }
@@ -297,24 +300,33 @@ contract PerpsMarket is Ownable, Pausable {
     /// @notice Function to calculate a position's profit
     /// @param position Current position of user
     /// @param ethPrice Price of ETH in USD
-    /// @return profitInUsd Profit in USD
+    /// @return profitInETH Profit in ETH
 
-    function calculateProfit(Position memory position, uint256 ethPrice) private pure returns (int256 profitInUsd) {
+    function calculateProfitInETH(Position memory position, uint256 ethPrice)
+        private
+        pure
+        returns (int256 profitInETH)
+    {
         uint256 positionEntryPrice = position.positionEntryPrice;
+        int256 profitInUsd;
         if (position.positionType == PositionType.LONG) {
             if (positionEntryPrice > ethPrice) {
-                profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+                // Loosing long position
+                profitInUsd = -int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
             } else {
-                profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
+                profitInUsd = int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
             }
-        }else {
-        //short
-        if (positionEntryPrice < ethPrice) {
-            profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
         } else {
-            profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+            //short
+            if (positionEntryPrice < ethPrice) {
+                // Short and loosing
+                profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
+            } else {
+                //Short and winning
+                profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+            }
         }
-        }
+        profitInETH = (1e18 * profitInUsd) / int256(ethPrice);
     }
 
     /// @notice Function to calculate fee for a position
@@ -394,10 +406,10 @@ contract PerpsMarket is Ownable, Pausable {
         }
         //Fetch ETH price
         uint256 ethPrice = uint256(PriceFeed.getChainlinkDataFeedLatestAnswer());
-     
+
         // calculate fees
         uint256 amountDepositedMinusFees;
-        uint256 fees = calculateFeesForPosition(amount); 
+        uint256 fees = calculateFeesForPosition(amount);
         // Pay with prize token if user has enough balance or pay with ETH
         uint256 userBalance = feePrizeToken.balanceOf(depositor);
 
@@ -406,15 +418,15 @@ contract PerpsMarket is Ownable, Pausable {
         uint256 amountToPayWithPrizeToken = (fees * ethPrice) / 1e24;
         bool isSuccess;
         if (userBalance > amountToPayWithPrizeToken && marketAllowance >= amountToPayWithPrizeToken) {
-           isSuccess = feePrizeToken.transferFrom(depositor, feeCollector, amountToPayWithPrizeToken);
-        } 
+            isSuccess = feePrizeToken.transferFrom(depositor, feeCollector, amountToPayWithPrizeToken);
+        }
 
-         if(isSuccess){
-          amountDepositedMinusFees = amountDeposited;
-         }else {
-          accumulatedFees += fees;
-          amountDepositedMinusFees = amountDeposited - fees;
-         }
+        if (isSuccess) {
+            amountDepositedMinusFees = amountDeposited;
+        } else {
+            accumulatedFees += fees;
+            amountDepositedMinusFees = amountDeposited - fees;
+        }
 
         // Check position size
         uint256 leverage = calculatePositionLeverage(amount, amountDepositedMinusFees);
@@ -481,7 +493,7 @@ contract PerpsMarket is Ownable, Pausable {
     /// @notice Function to start a campaign
     /// @dev Starts a campaign in PPCampaign contract and sets the isCampaignActive flag to true
     function startCampaign() external onlyOwner {
-        if(address(ppCampaign) == address(0)){
+        if (address(ppCampaign) == address(0)) {
             revert CampaignNotSet();
         }
         ppCampaign.startCampaign();
@@ -491,7 +503,7 @@ contract PerpsMarket is Ownable, Pausable {
     /// @notice Function to end a campaign
     /// @dev Ends a campaign in PPCampaign contract and sets the isCampaignActive flag to false
     function endCampaign() external onlyOwner {
-        if(address(ppCampaign) == address(0)){
+        if (address(ppCampaign) == address(0)) {
             revert CampaignNotSet();
         }
         ppCampaign.endCampaign();
@@ -508,7 +520,7 @@ contract PerpsMarket is Ownable, Pausable {
     /// @return bool Returns a bool signaling if the campaign is active or not
     /// @dev Checks if camapign is active and updates the state in this contract
     function checkIfCampaignActive() external returns (bool) {
-        if(address(ppCampaign) == address(0)){
+        if (address(ppCampaign) == address(0)) {
             revert CampaignNotSet();
         }
         if (ppCampaign.isCampaignActive()) {
