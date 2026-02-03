@@ -6,9 +6,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../Interfaces/IPPCampaign.sol";
-    /// @title PPCampaign
-    /// @notice This contract implements a campaign for Perp Points, where users can earn points based on their trading activity.
-    /// @dev For every campaign a seperate contract is deployed.
+
+/// @title PPCampaign
+/// @notice This contract implements a campaign for Perp Points, where users can earn points based on their trading activity.
+/// @dev For every campaign a seperate contract is deployed.
 contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     using SafeERC20 for IERC20;
 
@@ -16,6 +17,7 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     // Constants
     ///-///-///-///
     bytes32 public constant CAMPAIGN_ADMIN_ROLE = keccak256("CAMPAIGN_ADMIN_ROLE");
+    // 018e24ce9675721209068196867f2525c191c548d07fd44e29ff6fe34d0140e4
 
     ///-///-///-///
     // Immutables
@@ -59,11 +61,7 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
     //Points for each participant that has accumulated in the campaign
     mapping(address => ParticipantInfo) public participants;
 
-    constructor(
-        uint32 _duration,
-        address _prizeToken,
-        address _campaignAdmin
-    ) {
+    constructor(uint32 _duration, address _prizeToken, address _campaignAdmin) {
         if (_duration == 0) {
             revert ZeroDuration();
         }
@@ -75,10 +73,10 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
             revert ZeroAddress();
         }
 
-              if (_campaignAdmin == address(0)) {
+        if (_campaignAdmin == address(0)) {
             revert ZeroAddress();
         }
-        
+
         _grantRole(DEFAULT_ADMIN_ROLE, _campaignAdmin);
         CAMPAIGN_ID = block.timestamp;
         Duration = _duration;
@@ -94,7 +92,7 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
         _;
     }
 
-        /// @notice Restricts access to campaign admin
+    /// @notice Restricts access to campaign admin
     modifier onlyDefaultAdmin() {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized();
@@ -271,13 +269,12 @@ contract PPCampaign is AccessControl, IPPCampaign, Pausable {
         if (newAdmin == address(0)) {
             revert ZeroAddress();
         }
-        if ( hasRole(DEFAULT_ADMIN_ROLE, newAdmin)) {
+        if (hasRole(DEFAULT_ADMIN_ROLE, newAdmin)) {
             revert CmapgainAdminCantBeDefaultAdmin();
         }
         _grantRole(CAMPAIGN_ADMIN_ROLE, newAdmin);
         emit CampaignAdminSet(newAdmin);
     }
-    
 }
 
 //! Pausable!

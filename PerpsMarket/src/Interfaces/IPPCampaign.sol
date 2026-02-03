@@ -33,8 +33,7 @@ interface IPPCampaign {
     ///-///-///-///
     // Functions
     ///-///-///-///
-    function setPrizeAmounts(uint256 _firstPrizeAmount, uint256 _secondPrizeAmount, uint256 _thirdPrizeAmount)
-        external;
+    function setPrizeAmounts(uint256 _firstPrizeAmount, uint256 _secondPrizeAmount, uint256 _thirdPrizeAmount) external;
 
     function claimPrize() external;
 
