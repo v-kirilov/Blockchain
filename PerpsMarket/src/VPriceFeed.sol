@@ -38,7 +38,7 @@ contract VPriceFeed {
         return answer;
     }
 
-    function getDecimals()public view returns (uint8) {
+    function getDecimals() public view returns (uint8) {
         return dataFeed.decimals();
     }
 }
