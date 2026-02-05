@@ -80,6 +80,10 @@ contract PerpsMarket is Ownable, Pausable {
     // Events
     ///-///-///-///
     event PositionOpened(address indexed user, uint256 indexed deposited, uint256 indexed positionAmount, bool isLong);
+    event PositionLiquidated(
+        address indexed user, uint256 indexed positionAmount, uint256 indexed ethPrice, uint256 positionEntryPrice
+    );
+    event PositionClosed(address indexed user, uint256 indexed profit);
 
     ///-///-///-///
     // Modifiers
@@ -178,15 +182,14 @@ contract PerpsMarket is Ownable, Pausable {
             : accumulatedShortPositionAmount -= position.positionAmount;
     }
 
-    function isLiquidated(Position memory position, uint256 currentEthPrice) internal pure returns (bool) {
-        bool isGettingLiquidated;
-        if (position.positionType == PositionType.LONG) {
-            if (currentEthPrice <= position.positionLiquidationPrice) {
-                isGettingLiquidated = true;
-            }
-        } else {
-            if (currentEthPrice >= position.positionLiquidationPrice) {
-                isGettingLiquidated = true;
+    function isLiquidated(Position memory position, int256 profitInETHBeforeFees)
+        internal
+        pure
+        returns (bool isGettingLiquidated)
+    {
+        if (profitInETHBeforeFees < 0) {
+            if (uint256(-profitInETHBeforeFees) > position.amountDeposited) {
+                return true;
             }
         }
         return isGettingLiquidated;
@@ -210,7 +213,7 @@ contract PerpsMarket is Ownable, Pausable {
             revert PositionNotExisting();
         }
         //calculate profit
-        int256 profitInETHBeforeFees = calculateProfitInETH(position, ethPrice);(position, ethPrice);
+        int256 profitInETHBeforeFees = calculateProfitInETH(position, ethPrice);
 
         // Pay with prize token if user has enough balance or pay with ETH
         uint256 profit;
@@ -220,27 +223,28 @@ contract PerpsMarket is Ownable, Pausable {
         bool isWin;
         if (profitInETHBeforeFees <= 0) {
             // liquidated
-            if (isLiquidated(position, ethPrice)) {
+            if (isLiquidated(position, profitInETHBeforeFees)) {
                 position.positionAmount = 0;
                 position.amountDeposited = 0;
                 position.positionEntryPrice = 0;
                 position.positionLiquidationPrice = 0;
                 position.positionLeverage = 0;
                 positions[user] = position;
+                emit PositionLiquidated(user, position.positionAmount, ethPrice, position.positionEntryPrice);
                 return;
             } else {
                 // Calculate the loss and reduce from deposited amount
-                profit = uint256(-profitInETHBeforeFees);
+                profit = uint256((-profitInETHBeforeFees));
+
                 isWin = false;
             }
         } else {
             profit = uint256(profitInETHBeforeFees);
             isWin = true;
         }
-
         uint256 fees = calculateFeesForPosition(profit);
-        uint256 amountFeesToPayWithPrizeToken = (fees * ethPrice) / 1e24;
 
+        uint256 amountFeesToPayWithPrizeToken = (fees * ethPrice) / 1e24;
 
         if (userBalanceInPPToken > amountFeesToPayWithPrizeToken && marketAllowance >= amountFeesToPayWithPrizeToken) {
             // Pay fee with token
@@ -248,7 +252,11 @@ contract PerpsMarket is Ownable, Pausable {
         } else {
             // Pay fee with ETH
             accumulatedFees += fees;
-            profit = uint256(profitInETHBeforeFees) - fees;
+            if (isWin) {
+                profit = uint256(profitInETHBeforeFees) - fees;
+            } else {
+                profit = uint256(-profitInETHBeforeFees) - fees;
+            }
         }
 
         //Remove user from positions
@@ -256,9 +264,11 @@ contract PerpsMarket is Ownable, Pausable {
 
         //Save profit in positionProfit mapping
         // Save profit in mapping , if it is loquidated , dont save profit, close position only
-
-        positionProfit[user] += profit;
-
+        if (!isWin) {
+            positionProfit[user] = position.amountDeposited - profit;
+        } else {
+            positionProfit[user] += profit + position.amountDeposited;
+        }
         if (isCampaignActive && isWin) {
             ppCampaign.upSertParticipant(user, profit);
         }
@@ -312,21 +322,22 @@ contract PerpsMarket is Ownable, Pausable {
         if (position.positionType == PositionType.LONG) {
             if (positionEntryPrice > ethPrice) {
                 // Loosing long position
-                profitInUsd = -int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+                profitInUsd = -int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e4;
             } else {
-                profitInUsd = int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
+                profitInUsd = int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e4;
             }
         } else {
             //short
             if (positionEntryPrice < ethPrice) {
                 // Short and loosing
-                profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e8 / 1e3;
+                profitInUsd = -int256((ethPrice - positionEntryPrice) * position.positionLeverage) / 1e4;
             } else {
                 //Short and winning
-                profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e8 / 1e3;
+                profitInUsd = int256((positionEntryPrice - ethPrice) * position.positionLeverage) / 1e4;
             }
         }
         profitInETH = (1e18 * profitInUsd) / int256(ethPrice);
+        // -2040_80000000
     }
 
     /// @notice Function to calculate fee for a position
