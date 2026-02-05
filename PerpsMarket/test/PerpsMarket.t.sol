@@ -49,6 +49,7 @@ contract PerpsMarketTest is Test {
         ppCampaign = new PPCampaign(10 days, address(ppToken), admin);
         perpsMarket = new PerpsMarket(feeCollector, address(ppCampaign), address(ppToken), address(vPriceFeedMock));
         ppCampaign.setCampaignAdmin(address(perpsMarket));
+        vm.deal(address(perpsMarket), 100 ether);
     }
 
     function aliceOPpenPositionSuccess() public {
@@ -108,6 +109,42 @@ contract PerpsMarketTest is Test {
         vm.stopPrank();
     }
 
+    function test_closeWinningShortAndWithdraw() public {
+        // Starting ETHPRICE is 5k
+        vm.deal(alice, INITIAL_BALANCE);
+        vm.startPrank(alice);
+
+        uint256 amount = 2 ether;
+        perpsMarket.openPosition{value: 1 ether}(amount, false);
+
+        vPriceFeedMock.setPrice(2500e8);
+        uint256 aliceBalanceBefore = alice.balance;
+        perpsMarket.closePosition();
+        console2.log("Alice balance before withdraw: ", alice.balance);
+        perpsMarket.withdrawProfit();
+        console2.log("Alice balance after withdraw: ", alice.balance);
+        vm.stopPrank();
+        assert(alice.balance > aliceBalanceBefore);
+    }
+
+    function test_closeLoosingShortAndWithdraw() public {
+        // Starting ETHPRICE is 5k
+        vm.deal(alice, INITIAL_BALANCE);
+        vm.startPrank(alice);
+
+        uint256 amount = 2 ether;
+        uint256 aliceBalanceBefore = alice.balance;
+        perpsMarket.openPosition{value: 1 ether}(amount, false);
+
+        vPriceFeedMock.setPrice(6000e8);
+        perpsMarket.closePosition();
+        console2.log("Alice balance before withdraw: ", alice.balance);
+        perpsMarket.withdrawProfit();
+        console2.log("Alice balance after withdraw: ", alice.balance);
+        vm.stopPrank();
+        assert(alice.balance < aliceBalanceBefore);
+    }
+
     function test_closeLoosingShortPosition() public {
         vm.deal(alice, INITIAL_BALANCE);
         vm.startPrank(alice);
@@ -120,6 +157,42 @@ contract PerpsMarketTest is Test {
         perpsMarket.closePosition();
 
         vm.stopPrank();
+    }
+
+    function test_closeLoosingLongPosition() public {
+        vm.deal(alice, INITIAL_BALANCE);
+        vm.startPrank(alice);
+        uint256 aliceBalanceBefore = alice.balance;
+
+        uint256 amount = 2 ether;
+        perpsMarket.openPosition{value: 1 ether}(amount, true);
+
+        vPriceFeedMock.setPrice(3000e8);
+
+        perpsMarket.closePosition();
+
+        vm.stopPrank();
+        assert(alice.balance < aliceBalanceBefore);
+        console2.log("Alice balance before: ", aliceBalanceBefore);
+        console2.log("Alice balance after: ", alice.balance);
+    }
+
+    function test_closeWinningLongAndWithdraw() public {
+        // Starting ETHPRICE is 5k
+        vm.deal(alice, INITIAL_BALANCE);
+        vm.startPrank(alice);
+
+        uint256 aliceBalanceBefore = alice.balance;
+        uint256 amount = 2 ether;
+        perpsMarket.openPosition{value: 1 ether}(amount, true);
+
+        vPriceFeedMock.setPrice(7500e8);
+        perpsMarket.closePosition();
+        console2.log("Alice balance before withdraw: ", aliceBalanceBefore);
+        perpsMarket.withdrawProfit();
+        console2.log("Alice balance after withdraw: ", alice.balance);
+        vm.stopPrank();
+        assert(alice.balance > aliceBalanceBefore);
     }
 
     function test_openPositionRevertsNoMsgValue() public {
